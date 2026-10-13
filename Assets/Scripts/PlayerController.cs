@@ -1,203 +1,235 @@
 using UnityEngine;
 
+/// <summary>
+/// Движение игрока в стиле CS2 (Source Engine): мгновенный разгон/торможение
+/// на земле и честный air strafing в воздухе.
+/// Важно: пивот капсулы — у ног, т.е. transform.position = точка под ногами.
+/// Это упрощает спавн по точкам и синхронизацию позиции по сети.
+/// </summary>
 [RequireComponent(typeof(CharacterController))]
+[DefaultExecutionOrder(10)] // после PlayerCamera: движение считается по уже повёрнутому телу
 public class PlayerController : MonoBehaviour
 {
     [Header("Ссылки")]
-    [Tooltip("Камера, чтобы движение шло туда, куда смотрит игрок")]
-    public Transform cameraTransform;
-    
-    private CharacterController controller;
+    [Tooltip("Обработчик ввода (PlayerInputHandler)")]
+    public PlayerInputHandler input;
+    [Tooltip("Корень камеры (CameraRoot). Здесь меняется ТОЛЬКО высота глаз — наклон у самой камеры, оружие у WeaponHolder")]
+    public Transform cameraRoot;
 
     [Header("Скорости (м/с, как в CS2)")]
     [Tooltip("Обычная скорость бега")]
     public float walkSpeed = 6.5f;
     [Tooltip("Скорость в присяде")]
     public float crouchSpeed = 3.0f;
-    [Tooltip("Максимальная скорость в воздухе (ограничение)")]
-    public float airMaxSpeed = 30f; // в CS2 можно разогнаться сильно за счёт strafing
-    
+
     [Header("Ускорения")]
     [Tooltip("Как быстро игрок разгоняется/тормозит на земле")]
     public float groundAcceleration = 70f;
-    [Tooltip("Управление в воздухе (sv_airaccelerate в CS2 = 12, но для Unity берём больше)")]
-    public float airAcceleration = 12f;
-    
+    [Tooltip("Ускорение в воздухе вдоль wish-направления (аналог sv_airaccelerate)")]
+    public float airAcceleration = 10f;
+    [Tooltip("Потолок прироста скорости вдоль wish-направления в воздухе. В CS2 это 30 юнитов/с (примерно 0.8 м/с в нашем масштабе). Именно из-за этого потолка strafe-поворот даёт разгон выше беговой скорости")]
+    public float airSpeedCap = 0.8f;
+
     [Header("Прыжок и гравитация")]
-    public float jumpHeight = 1.2f;
+    public float jumpHeight = 1.0f;
     public float gravity = -20f;
-    
+
     [Header("Присед")]
     public float standingHeight = 2f;
-    public float crouchHeight = 1.2f;
+    public float crouchHeight = 1.4f;
     public float crouchTransitionSpeed = 10f;
-    
+    [Tooltip("Вкл: присед по нажатию (переключатель). Выкл: присед по удержанию (как в CS2)")]
+    public bool toggleCrouch = true;
+    [Tooltip("Глаза = верхняя точка капсулы минус этот отступ")]
+    public float eyeOffset = 0.2f;
+
     [Header("Проверка земли")]
     public Transform groundCheck;
     public float groundDistance = 0.3f;
     public LayerMask groundMask;
 
-    // Состояние
-    private Vector3 velocity;          // текущая скорость (включая гравитацию)
-    private Vector3 horizontalVelocity;// только горизонтальная скорость
+    // ===== Состояние =====
+    private CharacterController controller;
+    private Vector3 horizontalVelocity;   // горизонтальная скорость — здесь живёт air strafe
+    private float verticalVelocity;        // вертикальная скорость
     private bool isGrounded;
     private bool isCrouching;
     private float currentHeight;
 
-    void Start()
+    private static readonly Collider[] overlapBuffer = new Collider[16];
+
+    void Awake()
     {
         controller = GetComponent<CharacterController>();
-        currentHeight = standingHeight;
-        controller.height = standingHeight;
-        
-        // Если groundCheck не задан — создаём точку под ногами
+
+        if (input == null) input = GetComponent<PlayerInputHandler>();
+        if (cameraRoot == null) cameraRoot = transform.Find("CameraRoot");
+
         if (groundCheck == null)
         {
             GameObject go = new GameObject("GroundCheck");
-            go.transform.SetParent(transform);
-            go.transform.localPosition = new Vector3(0, -controller.height / 2f, 0);
+            go.transform.SetParent(transform, false);
             groundCheck = go.transform;
         }
+        groundCheck.localPosition = Vector3.zero; // пивот у ног — точка проверки прямо под капсулой
+
+        currentHeight = controller.height > 0.1f ? controller.height : standingHeight;
+        ApplyHeight(currentHeight);
     }
 
     void Update()
     {
-        CheckGround();
-        HandleCrouch();
-        HandleMovement();
-        HandleJump();
-        ApplyGravity();
-        ApplyFinalMovement();
+        // Если ввода нет (сетевой клон игрока или сцена ещё не собрана) — ничего не делаем
+        if (input == null) return;
+
+        UpdateGround();
+        UpdateCrouch();
+        UpdateMovement();
+        UpdateJump();
+        UpdateGravity();
+        ApplyMovement();
+        UpdateCameraHeight();
     }
 
-    // ===== ПРОВЕРКА ЗЕМЛИ =====
-    void CheckGround()
+    // ===== ЗЕМЛЯ =====
+    void UpdateGround()
     {
-        isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
-        
-        // Если стоим на земле и падали — обнуляем вертикальную скорость
-        if (isGrounded && velocity.y < 0)
-        {
-            velocity.y = -2f; // небольшое значение, чтобы CharacterController считал, что мы на земле
-        }
+        isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask, QueryTriggerInteraction.Ignore);
+
+        if (isGrounded && verticalVelocity < 0f)
+            verticalVelocity = -2f; // лёгкий "прижим" к земле, чтобы CharacterController не считал нас падающими
     }
 
     // ===== ПРИСЕД =====
-    void HandleCrouch()
+    void UpdateCrouch()
     {
-        if (Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.C))
+        if (toggleCrouch)
         {
-            isCrouching = !isCrouching;
-        }
-
-        float targetHeight = isCrouching ? crouchHeight : standingHeight;
-        currentHeight = Mathf.Lerp(currentHeight, targetHeight, Time.deltaTime * crouchTransitionSpeed);
-        controller.height = currentHeight;
-        
-        // Сдвигаем камеру, чтобы она не "уехала" в пол при присяде
-        if (cameraTransform != null)
-        {
-            cameraTransform.localPosition = new Vector3(
-                cameraTransform.localPosition.x,
-                currentHeight - 0.2f, // 0.2 — отступ от макушки до глаз
-                cameraTransform.localPosition.z
-            );
-        }
-    }
-
-    // ===== ДВИЖЕНИЕ =====
-    void HandleMovement()
-    {
-        // Направление "хотения" — относительно того, куда смотрит камера (проекция на горизонт)
-        Vector3 camForward = cameraTransform.forward;
-        Vector3 camRight = cameraTransform.right;
-        camForward.y = 0;
-        camRight.y = 0;
-        camForward.Normalize();
-        camRight.Normalize();
-
-        Vector3 inputDir = Vector3.zero;
-        if (Input.GetKey(KeyCode.W)) inputDir += camForward;
-        if (Input.GetKey(KeyCode.S)) inputDir -= camForward;
-        if (Input.GetKey(KeyCode.D)) inputDir += camRight;
-        if (Input.GetKey(KeyCode.A)) inputDir -= camRight;
-        
-        if (inputDir.magnitude > 1f) inputDir.Normalize();
-
-        float targetSpeed = isCrouching ? crouchSpeed : walkSpeed;
-
-        if (isGrounded)
-        {
-            // На земле: плавное ускорение/торможение (тот самый counter-strafing)
-            Vector3 targetHorizontal = inputDir * targetSpeed;
-            horizontalVelocity = Vector3.MoveTowards(
-                horizontalVelocity, 
-                targetHorizontal, 
-                groundAcceleration * Time.deltaTime
-            );
+            if (input.CrouchPressed) isCrouching = !isCrouching;
         }
         else
         {
-            // В ВОЗДУХЕ: механика Source Engine (air strafing)
-            // Мы НЕ ограничиваем скорость жёстко, а добавляем ускорение в сторону "желания"
-            ApplyAirAcceleration(inputDir, targetSpeed);
+            isCrouching = input.CrouchHeld;
         }
+
+        // Хотим встать, но сверху препятствие — остаёмся в приседе, пока не освободится место
+        if (!isCrouching && IsCeilingBlocked())
+            isCrouching = true;
+
+        float targetHeight = isCrouching ? crouchHeight : standingHeight;
+        float newHeight = Mathf.MoveTowards(currentHeight, targetHeight, crouchTransitionSpeed * Time.deltaTime);
+        ApplyHeight(newHeight);
     }
 
-    // ===== AIR STRAFING (сердце механики CS2) =====
-    void ApplyAirAcceleration(Vector3 wishDir, float wishSpeed)
+    // Есть ли геометрия на пути вставания (макушка при полном росте)?
+    bool IsCeilingBlocked()
     {
-        if (wishDir == Vector3.zero) return;
-
-        float currentSpeed = horizontalVelocity.magnitude;
-        
-        // Добавляем скорость в направлении wishDir
-        Vector3 addSpeed = wishDir * (airAcceleration * wishSpeed * Time.deltaTime);
-        Vector3 newVelocity = horizontalVelocity + addSpeed;
-        
-        // Ограничиваем проекцию новой скорости на wishDir значением wishSpeed
-        // Это позволяет разгоняться, поворачиваясь в сторону движения (strafe jump)
-        float newSpeed = newVelocity.magnitude;
-        if (newSpeed > wishSpeed)
+        float radius = Mathf.Max(controller.radius - 0.05f, 0.05f);
+        Vector3 top = transform.position + Vector3.up * (standingHeight - radius);
+        int hits = Physics.OverlapSphereNonAlloc(top, radius, overlapBuffer, groundMask, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < hits; i++)
         {
-            // Если превысили — проецируем обратно на окружность
-            float dot = Vector3.Dot(newVelocity, wishDir);
-            if (dot > wishSpeed)
-            {
-                newVelocity = wishDir * wishSpeed + (newVelocity - wishDir * dot);
-            }
+            if (overlapBuffer[i] != null && !overlapBuffer[i].transform.IsChildOf(transform))
+                return true;
         }
-        
-        horizontalVelocity = newVelocity;
+        return false;
+    }
+
+    // Высота капсулы меняется от ног, а не от центра: центр всегда на height/2 над пивотом
+    void ApplyHeight(float height)
+    {
+        currentHeight = height;
+        controller.height = height;
+        Vector3 center = controller.center;
+        center.x = 0f;
+        center.z = 0f;
+        center.y = height * 0.5f;
+        controller.center = center;
+    }
+
+    // ===== ДВИЖЕНИЕ =====
+    void UpdateMovement()
+    {
+        // "Желание" игрока — относительно текущего направления тела (его вращает камера)
+        Vector2 axis = input.Move;
+        Vector3 wishDir = transform.right * axis.x + transform.forward * axis.y;
+        wishDir.y = 0f;
+
+        float inputMagnitude = wishDir.magnitude;
+        if (inputMagnitude > 0.001f) wishDir /= inputMagnitude;
+        else wishDir = Vector3.zero;
+
+        float wishSpeed = inputMagnitude * (isCrouching ? crouchSpeed : walkSpeed);
+
+        if (isGrounded)
+            GroundMove(wishDir, wishSpeed);
+        else
+            AirAccelerate(wishDir, wishSpeed);
+    }
+
+    // На земле: плавный разгон/торможение к целевой скорости (тот самый counter-strafing)
+    void GroundMove(Vector3 wishDir, float wishSpeed)
+    {
+        Vector3 target = wishDir * wishSpeed;
+        horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, groundAcceleration * Time.deltaTime);
+    }
+
+    // В воздухе: механика Source Engine (air strafing).
+    // Мы НЕ ограничиваем общую скорость — только проекцию на wish-направление,
+    // поэтому, поворачивая мышь синхронно со стрейфом, можно разогнаться выше беговой.
+    void AirAccelerate(Vector3 wishDir, float wishSpeed)
+    {
+        if (wishDir == Vector3.zero || wishSpeed < 0.01f) return;
+
+        // Полезная скорость вдоль wishDir ограничена cap'ом (в CS2: 30 юнитов/с)
+        float cappedWishSpeed = Mathf.Min(wishSpeed, airSpeedCap);
+
+        // Насколько мы уже движемся вдоль wishDir
+        float currentSpeed = Vector3.Dot(horizontalVelocity, wishDir);
+        float addSpeed = cappedWishSpeed - currentSpeed;
+        if (addSpeed <= 0f) return;
+
+        // Ускорение считается от ПОЛНОЙ желаемой скорости — как в Source
+        float accelSpeed = airAcceleration * wishSpeed * Time.deltaTime;
+        if (accelSpeed > addSpeed) accelSpeed = addSpeed;
+
+        horizontalVelocity += wishDir * accelSpeed;
     }
 
     // ===== ПРЫЖОК =====
-    void HandleJump()
+    void UpdateJump()
     {
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
-        {
-            // v = sqrt(2 * g * h)
-            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
-        }
+        if (input.JumpPressed && isGrounded)
+            verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity); // v = sqrt(2gh)
     }
 
     // ===== ГРАВИТАЦИЯ =====
-    void ApplyGravity()
+    void UpdateGravity()
     {
-        velocity.y += gravity * Time.deltaTime;
+        verticalVelocity += gravity * Time.deltaTime;
     }
 
     // ===== ФИНАЛЬНОЕ ПРИМЕНЕНИЕ =====
-    void ApplyFinalMovement()
+    void ApplyMovement()
     {
-        // Собираем итоговый вектор: горизонталь + вертикаль
-        Vector3 move = horizontalVelocity + Vector3.up * velocity.y;
-        controller.Move(move * Time.deltaTime);
+        controller.Move((horizontalVelocity + Vector3.up * verticalVelocity) * Time.deltaTime);
     }
 
-    // ===== ГЕТТЕРЫ ДЛЯ ДРУГИХ СИСТЕМ (анимации, звуки, оружие) =====
+    // ===== КАМЕРА: только высота глаз =====
+    void UpdateCameraHeight()
+    {
+        if (cameraRoot == null) return;
+        Vector3 p = cameraRoot.localPosition;
+        p.x = 0f;
+        p.z = 0f;
+        p.y = currentHeight - eyeOffset;
+        cameraRoot.localPosition = p;
+    }
+
+    // ===== ГЕТТЕРЫ ДЛЯ ДРУГИХ СИСТЕМ (анимации, звуки, оружие, сеть) =====
     public bool IsGrounded() => isGrounded;
     public bool IsCrouching() => isCrouching;
     public float GetHorizontalSpeed() => horizontalVelocity.magnitude;
-    public Vector3 GetVelocity() => horizontalVelocity + Vector3.up * velocity.y;
+    public Vector3 GetVelocity() => horizontalVelocity + Vector3.up * verticalVelocity;
+    public float GetHeight() => currentHeight;
 }

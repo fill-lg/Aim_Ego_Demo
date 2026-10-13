@@ -1,58 +1,83 @@
 using UnityEngine;
 
+/// <summary>
+/// Обзор от первого лица. Pitch (вверх/вниз) — у камеры,
+/// yaw (влево/вправо) — у корня игрока.
+/// Дельта мыши берётся из нового Input System (сырые пиксели за кадр,
+/// без сглаживания — отзывчиво, как в CS2).
+/// </summary>
+[DefaultExecutionOrder(-10)] // поворачиваем тело до того, как PlayerController посчитает движение
 public class PlayerCamera : MonoBehaviour
 {
-    [Header("Настройки чувствительности")]
-    [Tooltip("Чувствительность мыши. В CS2 аналогично настраивается в консоли (sensitivity)")]
-    public float mouseSensitivity = 2.5f; 
-    
-    [Header("Оси и ограничения")]
-    [Tooltip("Ссылка на объект игрока (тело/капсулу), чтобы вращать его влево/вправо")]
-    public Transform playerBody; 
-    
+    [Header("Ссылки")]
+    [Tooltip("Обработчик ввода (обычно на корне игрока)")]
+    public PlayerInputHandler input;
+    [Tooltip("Корень игрока — вращается влево/вправо")]
+    public Transform playerBody;
+
+    [Header("Настройки")]
+    [Tooltip("Чувствительность мыши. В новых Input System дельта — в пикселях, поэтому значение здесь примерно в 10 раз меньше, чем в старом Input Manager (было 2.5, стало 0.25)")]
+    public float mouseSensitivity = 0.25f;
     [Tooltip("Максимальный угол взгляда вверх/вниз")]
-    public float clampAngle = 89f; 
-    
-    [Tooltip("Инвертировать ось Y (как в старых играх)")]
+    public float clampAngle = 89f;
+    [Tooltip("Инвертировать ось Y")]
     public bool invertY = false;
 
-    // Внутренняя переменная для хранения угла наклона камеры (Pitch)
-    private float xRotation = 0f;
+    private float pitch;
 
-    void Start()
+    void Awake()
     {
-        // Блокируем и скрываем курсор при старте
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        if (input == null) input = GetComponentInParent<PlayerInputHandler>();
+        if (playerBody == null) playerBody = transform.root;
+    }
 
-        // Проверка на случай, если вы забыли назначить playerBody в инспекторе
-        if (playerBody == null)
-        {
-            Debug.LogWarning("CS2_CameraLook: Не указан playerBody! Камера не будет вращаться по горизонтали.");
-        }
+    void OnEnable()
+    {
+        LockCursor();
+        if (input != null) input.PausePressed += ToggleCursorLock;
+    }
+
+    void OnDisable()
+    {
+        if (input != null) input.PausePressed -= ToggleCursorLock;
     }
 
     void Update()
     {
-        // Используем GetAxisRaw, чтобы отключить встроенное сглаживание Unity.
-        // Это дает тот самый "сырой" и отзывчивый ввод как в CS2.
-        float mouseX = Input.GetAxisRaw("Mouse X") * mouseSensitivity;
-        float mouseY = Input.GetAxisRaw("Mouse Y") * mouseSensitivity;
+        if (input == null) return;
 
+        Vector2 look = input.Look;
+        float mouseX = look.x * mouseSensitivity;
+        float mouseY = look.y * mouseSensitivity;
         if (invertY) mouseY = -mouseY;
 
-        // 1. Вращение камеры ВВЕРХ/ВНИЗ (Pitch / Ось X)
-        xRotation -= mouseY;
-        // Ограничиваем угол, чтобы камера не перевернулась через голову
-        xRotation = Mathf.Clamp(xRotation, -clampAngle, clampAngle);
+        // 1. Pitch — вверх/вниз, только локальный наклон камеры
+        pitch -= mouseY;
+        pitch = Mathf.Clamp(pitch, -clampAngle, clampAngle);
+        transform.localRotation = Quaternion.Euler(pitch, 0f, 0f);
 
-        // Применяем вращение только к локальной оси X самой камеры
-        transform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-
-        // 2. Вращение игрока ВЛЕВО/ВПРАВО (Yaw / Ось Y)
+        // 2. Yaw — влево/вправо, вращаем тело игрока
         if (playerBody != null)
-        {
             playerBody.Rotate(Vector3.up * mouseX);
+    }
+
+    void LockCursor()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    // Временное решение до фазы UI: Esc снимает/возвращает захват курсора
+    void ToggleCursorLock()
+    {
+        if (Cursor.lockState == CursorLockMode.Locked)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else
+        {
+            LockCursor();
         }
     }
 }
