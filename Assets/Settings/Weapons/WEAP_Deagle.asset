@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4cf6a191d414ec744b1460c826c0b8d1, type: 3}
+  m_Name: WEAP_Deagle
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponConfig
+  displayName: Desert Eagle
+  automatic: 0
+  damage: 53
+  range: 300
+  fireInterval: 0.28
+  magazineSize: 7
+  reserveAmmo: 35
+  reloadTime: 2.2
+  baseSpread: 0.15
+  spreadPerShot: 0.9
+  maxSpread: 4
+  spreadRecovery: 5
+  recoilPitch: 3.5
+  recoilYaw: 0.5
+  viewModelPrefab: {fileID: 476152893968654396, guid: e6e6fe80e2cb8db4b8c4f7b912f54ad8, type: 3}
+  muzzleLocalPosition: {x: 0, y: 0.05, z: 0.35}
+  tracerColor: {r: 1, g: 0.85, b: 0.55, a: 0.9}
+  tracerWidth: 0.02
+  tracerTime: 0.05
+  fireSound: {fileID: 0}
+  reloadSound: {fileID: 0}

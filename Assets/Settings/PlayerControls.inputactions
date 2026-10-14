@@ -77,6 +77,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "QuickSwap",
+                    "type": "Button",
+                    "id": "3f7a9c10-4e2b-4d1f-9a86-77c1e5b0d331",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -204,7 +213,7 @@
                 {
                     "name": "",
                     "id": "ce89de4d-6256-4932-8ecf-c6bd0491fd0f",
-                    "path": "<Keyboard>/digit1",
+                    "path": "<Keyboard>/1",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -215,11 +224,22 @@
                 {
                     "name": "",
                     "id": "dd5b5522-985f-4889-8056-744960594adf",
-                    "path": "<Keyboard>/digit2",
+                    "path": "<Keyboard>/2",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
                     "action": "Slot2",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "9c4b7e21-6d8f-4a3b-b5c9-2e8f1a7d4c60",
+                    "path": "<Keyboard>/q",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "QuickSwap",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

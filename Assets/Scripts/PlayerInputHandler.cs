@@ -14,7 +14,7 @@ public class PlayerInputHandler : MonoBehaviour
     [Tooltip("Ассет ввода PlayerControls.inputactions")]
     public InputActionAsset actionsAsset;
 
-    private InputAction move, look, jump, crouch, fire, reload, slot1, slot2, pause;
+    private InputAction move, look, jump, crouch, fire, reload, slot1, slot2, quickSwap, pause;
 
     /// <summary>Событие: нажат Esc. Пока используется только для снятия захвата курсора, в фазе UI — для меню паузы.</summary>
     public event Action PausePressed;
@@ -36,6 +36,7 @@ public class PlayerInputHandler : MonoBehaviour
     public bool ReloadPressed  => reload != null && reload.WasPressedThisFrame();
     public bool Slot1Pressed   => slot1 != null && slot1.WasPressedThisFrame();
     public bool Slot2Pressed   => slot2 != null && slot2.WasPressedThisFrame();
+    public bool QuickSwapPressed => quickSwap != null && quickSwap.WasPressedThisFrame();
 
     void Awake()
     {
@@ -54,6 +55,8 @@ public class PlayerInputHandler : MonoBehaviour
         reload = actionsAsset.FindAction("Player/Reload", true);
         slot1  = actionsAsset.FindAction("Player/Slot1", true);
         slot2  = actionsAsset.FindAction("Player/Slot2", true);
+        // QuickSwap появился позже — в старых ассетах его может не быть, потому без throwOnMissing
+        quickSwap = actionsAsset.FindAction("Player/QuickSwap", false);
         pause  = actionsAsset.FindAction("UI/Pause", true);
 
         if (pause != null) pause.performed += OnPause;

@@ -72,8 +72,10 @@ public static class AimEgoProjectSetup
 
         player.AddAction("Fire",   InputActionType.Button, "<Mouse>/leftButton");
         player.AddAction("Reload", InputActionType.Button, "<Keyboard>/r");
-        player.AddAction("Slot1",  InputActionType.Button, "<Keyboard>/digit1");
-        player.AddAction("Slot2",  InputActionType.Button, "<Keyboard>/digit2");
+        // Внимание: клавиши цифр в Input System называются "1"/"2", а не "digit1"/"digit2"
+        player.AddAction("Slot1",  InputActionType.Button, "<Keyboard>/1");
+        player.AddAction("Slot2",  InputActionType.Button, "<Keyboard>/2");
+        player.AddAction("QuickSwap", InputActionType.Button, "<Keyboard>/q");
 
         var ui = new InputActionMap("UI");
         ui.AddAction("Pause", InputActionType.Button, "<Keyboard>/escape");
@@ -93,7 +95,7 @@ public static class AimEgoProjectSetup
     static GameObject EnsurePlayerPrefab(InputActionAsset actions)
     {
         // Убираем старого игрока (префаб-инстанс болванки со скриптами поверх)
-        foreach (var old in Object.FindObjectsByType<PlayerController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (var old in Object.FindObjectsByType<PlayerController>(FindObjectsInactive.Include))
         {
             Debug.Log("AimEgo Setup: удаляю старого игрока '" + old.name + "'");
             Object.DestroyImmediate(old.gameObject);
@@ -176,7 +178,7 @@ public static class AimEgoProjectSetup
 
         // Игрок уже в сцене (повторный запуск) — просто переставляем его на спавн
         GameObject player;
-        var existing = Object.FindFirstObjectByType<PlayerController>(FindObjectsInactive.Include);
+        var existing = Object.FindAnyObjectByType<PlayerController>(FindObjectsInactive.Include);
         if (existing != null)
         {
             player = existing.gameObject;

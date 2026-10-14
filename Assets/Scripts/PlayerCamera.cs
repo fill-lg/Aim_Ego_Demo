@@ -23,6 +23,13 @@ public class PlayerCamera : MonoBehaviour
     [Tooltip("Инвертировать ось Y")]
     public bool invertY = false;
 
+    [Header("Отдача")]
+    [Tooltip("Как быстро камера возвращается после отдачи от выстрела")]
+    public float recoilRecovery = 10f;
+
+    // Текущий подброс от отдачи (градусы, >0 — вверх)
+    private float kickPitch;
+
     private float pitch;
 
     void Awake()
@@ -54,11 +61,25 @@ public class PlayerCamera : MonoBehaviour
         // 1. Pitch — вверх/вниз, только локальный наклон камеры
         pitch -= mouseY;
         pitch = Mathf.Clamp(pitch, -clampAngle, clampAngle);
-        transform.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+
+        // Отдача от выстрелов плавно возвращается к нулю
+        kickPitch = Mathf.Lerp(kickPitch, 0f, 1f - Mathf.Exp(-recoilRecovery * Time.deltaTime));
+        transform.localRotation = Quaternion.Euler(pitch - kickPitch, 0f, 0f);
 
         // 2. Yaw — влево/вправо, вращаем тело игрока
         if (playerBody != null)
             playerBody.Rotate(Vector3.up * mouseX);
+    }
+
+    /// <summary>
+    /// Подброс камеры от выстрела: pitchDegrees вверх, случайный yawDegrees в сторону.
+    /// Вызывает PlayerShooting; трасса пули идёт по новой ориентации камеры — как в CS.
+    /// </summary>
+    public void AddRecoil(float pitchDegrees, float yawDegrees)
+    {
+        kickPitch += pitchDegrees;
+        if (playerBody != null && yawDegrees > 0f)
+            playerBody.Rotate(Vector3.up * Random.Range(-yawDegrees, yawDegrees));
     }
 
     void LockCursor()
