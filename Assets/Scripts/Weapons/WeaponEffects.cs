@@ -19,12 +19,31 @@ public class WeaponEffects : MonoBehaviour
 
     void Awake()
     {
-        // Инициализация пула декалей (создаем простой префаб программно или ссылкой)
-        // Для примера создаем пустой объект с компонентом BulletDecal
+        // Создаем простой Quad меш вручную, чтобы избежать проблем с Resources.GetBuiltinResource
+        Mesh quadMesh = new Mesh();
+        Vector3[] vertices = {
+            new Vector3(-0.5f, -0.5f, 0),
+            new Vector3(0.5f, -0.5f, 0),
+            new Vector3(-0.5f, 0.5f, 0),
+            new Vector3(0.5f, 0.5f, 0)
+        };
+        Vector2[] uv = {
+            new Vector2(0, 0),
+            new Vector2(1, 0),
+            new Vector2(0, 1),
+            new Vector2(1, 1)
+        };
+        int[] triangles = { 0, 2, 1, 1, 2, 3 };
+
+        quadMesh.vertices = vertices;
+        quadMesh.uv = uv;
+        quadMesh.triangles = triangles;
+        quadMesh.RecalculateNormals();
+
         GameObject decalPrefab = new GameObject("DecalPrefab");
         decalPrefab.AddComponent<BulletDecal>();
-        var renderer = decalPrefab.AddComponent<MeshFilter>();
-        renderer.sharedMesh = Resources.GetBuiltinResource<Mesh>("Quad");
+        var meshFilter = decalPrefab.AddComponent<MeshFilter>();
+        meshFilter.sharedMesh = quadMesh;
         var meshRenderer = decalPrefab.AddComponent<MeshRenderer>();
         meshRenderer.sharedMaterial = decalMaterial;
 
@@ -33,6 +52,7 @@ public class WeaponEffects : MonoBehaviour
         // Для частиц используем обычный Instantiate, так как они часто имеют свои системы пулинга
         // или мы можем реализовать отдельный пул GameObject.
     }
+
 
     public void PlayMuzzleFlash(MuzzleFlash flash)
     {

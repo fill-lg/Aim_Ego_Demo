@@ -67,11 +67,12 @@ public class PlayerShooting : MonoBehaviour
     public float ReloadProgress => Config != null && Config.reloadTime > 0f ? 1f - reloadTimer / Config.reloadTime : 0f;
 
     public event Action AmmoChanged;
-    public event Action WeaponSwitched;
+    public event Action<int, WeaponConfig> WeaponSwitched;
     /// (нанесённый урон, убил ли этим выстрелом) — для хитмаркера
     public event Action<float, bool> HitConfirmed;
     public event Action<bool> ReloadStateChanged;
     public event Action BloomChanged;
+
 
 
     void Start()
@@ -191,7 +192,7 @@ public class PlayerShooting : MonoBehaviour
         cooldown = 0f;
         equipTimer = equipTime;
         CacheMuzzle();
-        WeaponSwitched?.Invoke();
+        WeaponSwitched?.Invoke(currentSlot, loadout[currentSlot]);
         AmmoChanged?.Invoke();
     }
 
@@ -264,16 +265,24 @@ public class PlayerShooting : MonoBehaviour
         lastShotTime = Time.time;
 
         Vector2 patternOffset = Vector2.zero;
-        if (Config.sprayPattern != null && shotsFiredInBurst < Config.sprayPattern.Length)
+        if (Config.sprayPattern != null && Config.sprayPattern.Length > 0)
         {
-            patternOffset = Config.sprayPattern[shotsFiredInBurst];
+            if (shotsFiredInBurst < Config.sprayPattern.Length)
+            {
+                patternOffset = Config.sprayPattern[shotsFiredInBurst];
+            }
+            else
+            {
+                // После конца паттерна используем последний элемент + рандом
+                patternOffset = Config.sprayPattern[Config.sprayPattern.Length - 1] + UnityEngine.Random.insideUnitCircle * 0.1f;
+            }
+            shotsFiredInBurst++;
         }
-        else if (Config.sprayPattern != null)
+        else
         {
-            // После конца паттерна используем последний элемент + рандом
-            patternOffset = Config.sprayPattern[Config.sprayPattern.Length - 1] + UnityEngine.Random.insideUnitCircle * 0.1f;
+            // Если паттерна нет, просто не добавляем смещение (будет работать только bloom)
+            shotsFiredInBurst = 0;
         }
-        shotsFiredInBurst++;
 
         // Направление: паттерн + случайный разброс (bloom)
         float spreadDeg = Config.baseSpread + bloom;
