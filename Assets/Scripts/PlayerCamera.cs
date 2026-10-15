@@ -35,8 +35,16 @@ public class PlayerCamera : MonoBehaviour
     void Awake()
     {
         if (input == null) input = GetComponentInParent<PlayerInputHandler>();
-        if (playerBody == null) playerBody = transform.root;
+
+        // Поиск тела игрока более надежным способом
+        if (playerBody == null)
+        {
+            var controller = GetComponentInParent<PlayerController>();
+            if (controller != null) playerBody = controller.transform;
+            else playerBody = transform.root;
+        }
     }
+
 
     void OnEnable()
     {
@@ -54,6 +62,8 @@ public class PlayerCamera : MonoBehaviour
         if (input == null) return;
 
         Vector2 look = input.Look;
+        if (look == Vector2.zero) return; // Оптимизация: не считаем поворот, если мышь не двигалась
+
         float mouseX = look.x * mouseSensitivity;
         float mouseY = look.y * mouseSensitivity;
         if (invertY) mouseY = -mouseY;
@@ -70,6 +80,7 @@ public class PlayerCamera : MonoBehaviour
         if (playerBody != null)
             playerBody.Rotate(Vector3.up * mouseX);
     }
+
 
     /// <summary>
     /// Подброс камеры от выстрела: pitchDegrees вверх, случайный yawDegrees в сторону.

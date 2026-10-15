@@ -44,8 +44,12 @@ public class PlayerShooting : MonoBehaviour
     private float reloadTimer;
     private bool reloading;
     private int reloadStage;    // какой звук перезарядки уже сыгран
+    private int shotsFiredInBurst; // счетчик выстрелов в очереди для спрея
+    private float lastShotTime;
     private Transform muzzle;
     private MuzzleFlash flash;
+    private WeaponEffects effects;
+
 
     // Доли ReloadProgress, на которых играют звуки этапов (синхронно с анимацией вьюмодели)
     static readonly float[] ReloadStages = { WeaponViewModel.TMagOut, WeaponViewModel.TMagIn, WeaponViewModel.TRack };
@@ -66,6 +70,9 @@ public class PlayerShooting : MonoBehaviour
     public event Action WeaponSwitched;
     /// (нанесённый урон, убил ли этим выстрелом) — для хитмаркера
     public event Action<float, bool> HitConfirmed;
+    public event Action<bool> ReloadStateChanged;
+    public event Action BloomChanged;
+
 
     void Start()
     {
@@ -80,10 +87,14 @@ public class PlayerShooting : MonoBehaviour
             sfx.dopplerLevel = 0f;
         }
 
+        effects = GetComponent<WeaponEffects>();
+        if (effects == null) effects = gameObject.AddComponent<WeaponEffects>();
+
         int n = loadout != null ? loadout.Length : 0;
         viewModels = new GameObject[n];
         mag = new int[n];
         reserve = new int[n];
+
 
         for (int i = 0; i < n; i++)
         {
@@ -126,7 +137,9 @@ public class PlayerShooting : MonoBehaviour
         equipTimer -= dt;
 
         // Разброс восстанавливается, когда не стреляешь
+        float prevBloom = bloom;
         bloom = Mathf.MoveTowards(bloom, 0f, Config.spreadRecovery * dt);
+        if (Mathf.Abs(bloom - prevBloom) > 0.001f) BloomChanged?.Invoke();
 
         HandleSwitch();
 
@@ -155,6 +168,7 @@ public class PlayerShooting : MonoBehaviour
 
         HandleFire();
     }
+
 
     // ===== СМЕНА ОРУЖИЯ =====
     void HandleSwitch()
@@ -201,6 +215,7 @@ public class PlayerShooting : MonoBehaviour
         if (mag[currentSlot] >= Config.magazineSize || reserve[currentSlot] <= 0) return;
 
         reloading = true;
+        ReloadStateChanged?.Invoke(true);
         reloadStage = 0;
         reloadTimer = Config.reloadTime;
     }
@@ -208,6 +223,7 @@ public class PlayerShooting : MonoBehaviour
     void FinishReload()
     {
         reloading = false;
+        ReloadStateChanged?.Invoke(false);
         if (Config == null) return;
 
         int need = Config.magazineSize - mag[currentSlot];
@@ -216,6 +232,7 @@ public class PlayerShooting : MonoBehaviour
         reserve[currentSlot] -= take;
         AmmoChanged?.Invoke();
     }
+
 
     // ===== ОГОНЬ =====
     void HandleFire()
@@ -242,10 +259,26 @@ public class PlayerShooting : MonoBehaviour
         mag[currentSlot]--;
         AmmoChanged?.Invoke();
 
-        // Направление с разбросом: случайная точка в конусе spreadDeg градусов
+        // Обработка спрей-паттерна
+        if (Time.time - lastShotTime > 0.5f) shotsFiredInBurst = 0;
+        lastShotTime = Time.time;
+
+        Vector2 patternOffset = Vector2.zero;
+        if (Config.sprayPattern != null && shotsFiredInBurst < Config.sprayPattern.Length)
+        {
+            patternOffset = Config.sprayPattern[shotsFiredInBurst];
+        }
+        else if (Config.sprayPattern != null)
+        {
+            // После конца паттерна используем последний элемент + рандом
+            patternOffset = Config.sprayPattern[Config.sprayPattern.Length - 1] + UnityEngine.Random.insideUnitCircle * 0.1f;
+        }
+        shotsFiredInBurst++;
+
+        // Направление: паттерн + случайный разброс (bloom)
         float spreadDeg = Config.baseSpread + bloom;
-        Vector2 r = UnityEngine.Random.insideUnitCircle * spreadDeg;
-        Vector3 dir = eyes.transform.rotation * Quaternion.Euler(r.y, r.x, 0f) * Vector3.forward;
+        Vector2 randomSpread = UnityEngine.Random.insideUnitCircle * spreadDeg;
+        Vector3 dir = eyes.transform.rotation * Quaternion.Euler(patternOffset.y + randomSpread.y, patternOffset.x + randomSpread.x, 0f) * Vector3.forward;
         Vector3 origin = eyes.transform.position;
 
         // Хитскан: ближайшее попадание, пропуская коллайдеры самого игрока
@@ -270,27 +303,19 @@ public class PlayerShooting : MonoBehaviour
             }
             else
             {
-                // След на геометрии
-                SpawnDecal(hit);
-                if (impactPrefab != null)
-                {
-                    var impact = Instantiate(impactPrefab, hit.point + hit.normal * 0.02f, Quaternion.LookRotation(hit.normal));
-                    Destroy(impact, 1.5f);
-                }
+                effects.PlayImpact(hit, Config);
             }
             break;
         }
 
-        // Эффекты выстрела
-        if (flash != null) flash.Show();
-        if (muzzle != null)
-        {
-            TracerEffect.Spawn(muzzle.position, endPoint, tracerMaterial, Config.tracerWidth, Config.tracerTime, Config.tracerColor);
-            if (Config.fireSound != null) AudioSource.PlayClipAtPoint(Config.fireSound, muzzle.position, 0.9f);
-        }
+        // Эффекты выстрела через WeaponEffects
+        effects.PlayMuzzleFlash(flash);
+        effects.PlayTracer(muzzle != null ? muzzle.position : eyes.transform.position, endPoint, Config);
+        if (Config.fireSound != null) AudioSource.PlayClipAtPoint(Config.fireSound, muzzle != null ? muzzle.position : eyes.transform.position, 0.9f);
 
         // Разброс и отдача растут
         bloom = Mathf.Min(bloom + Config.spreadPerShot, Config.maxSpread);
+        BloomChanged?.Invoke();
 
         var cam = GetComponentInChildren<PlayerCamera>();
         if (cam != null) cam.AddRecoil(Config.recoilPitch, Config.recoilYaw);
@@ -309,22 +334,6 @@ public class PlayerShooting : MonoBehaviour
         if (clip == null || sfx == null) return;
         sfx.pitch = UnityEngine.Random.Range(0.94f, 1.06f);
         sfx.PlayOneShot(clip, volume);
-    }
-
-    void SpawnDecal(RaycastHit hit)
-    {
-        if (decalMaterial == null) return;
-
-        var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        quad.name = "Decal";
-        Destroy(quad.GetComponent<Collider>()); // декаль не должна блокировать движение и выстрелы
-        quad.GetComponent<Renderer>().material = decalMaterial;
-
-        float s = decalSize * UnityEngine.Random.Range(0.8f, 1.2f);
-        quad.transform.localScale = new Vector3(s, s, s);
-        quad.transform.position = hit.point + hit.normal * 0.01f;
-        quad.transform.rotation = Quaternion.LookRotation(hit.normal) * Quaternion.Euler(0f, 0f, UnityEngine.Random.Range(0f, 360f));
-        Destroy(quad, decalLifetime);
     }
 
     static void SetLayerRecursive(GameObject go, int layer)

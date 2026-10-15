@@ -39,6 +39,10 @@ public class WeaponConfig : ScriptableObject
     [Tooltip("Случайный увод камеры в сторону за выстрел")]
     public float recoilYaw = 0.3f;
 
+    [Tooltip("Рисунок разброса (спрей). Каждый элемент — смещение (X: Yaw, Y: Pitch).")]
+    public Vector2[] sprayPattern;
+
+
     [Header("Вьюмодель")]
     public GameObject viewModelPrefab;
     [Tooltip("Позиция дула относительно корня вьюмодели (там же вспышка и старт трассера)")]

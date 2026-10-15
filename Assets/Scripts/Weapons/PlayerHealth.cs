@@ -22,8 +22,11 @@ public class PlayerHealth : MonoBehaviour
     public event Action Damaged;
     /// Смерть (для раундов в фазе 3)
     public event Action Died;
+    /// Изменение здоровья (текущее, максимальное)
+    public event Action<float, float> OnHealthChanged;
 
     private Collider[] hitboxColliders;
+
 
     void Awake()
     {
@@ -44,9 +47,11 @@ public class PlayerHealth : MonoBehaviour
         if (!IsAlive) return;
 
         Current = Mathf.Max(0f, Current - amount);
+        OnHealthChanged?.Invoke(Current, maxHealth);
         Damaged?.Invoke();
         if (Current <= 0f) Die();
     }
+
 
     void Die()
     {
@@ -82,6 +87,8 @@ public class PlayerHealth : MonoBehaviour
 
         transform.rotation = upright;
         Current = maxHealth;
+        OnHealthChanged?.Invoke(Current, maxHealth);
         SetHitboxesEnabled(true);
     }
+
 }

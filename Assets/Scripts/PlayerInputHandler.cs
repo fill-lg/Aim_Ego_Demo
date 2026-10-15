@@ -22,10 +22,10 @@ public class PlayerInputHandler : MonoBehaviour
     // ===== Поллинг для игрового цикла (null-безопасно: пока ввод не настроен, отдаём нули) =====
 
     /// <summary>x — вправо/влево, y — вперёд/назад</summary>
-    public Vector2 Move => move != null ? move.ReadValue<Vector2>() : Vector2.zero;
+    public Vector2 Move => _cachedMove;
 
     /// <summary>Сырая дельта мыши за кадр, в пикселях</summary>
-    public Vector2 Look => look != null ? look.ReadValue<Vector2>() : Vector2.zero;
+    public Vector2 Look => _cachedLook;
 
     public bool JumpPressed    => jump != null && jump.WasPressedThisFrame();
     public bool JumpHeld       => jump != null && jump.IsPressed();
@@ -37,6 +37,16 @@ public class PlayerInputHandler : MonoBehaviour
     public bool Slot1Pressed   => slot1 != null && slot1.WasPressedThisFrame();
     public bool Slot2Pressed   => slot2 != null && slot2.WasPressedThisFrame();
     public bool QuickSwapPressed => quickSwap != null && quickSwap.WasPressedThisFrame();
+
+    private Vector2 _cachedMove;
+    private Vector2 _cachedLook;
+
+    void Update()
+    {
+        // Кэшируем значения ввода один раз за кадр для оптимизации
+        _cachedMove = move != null ? move.ReadValue<Vector2>() : Vector2.zero;
+        _cachedLook = look != null ? look.ReadValue<Vector2>() : Vector2.zero;
+    }
 
     void Awake()
     {
@@ -67,8 +77,16 @@ public class PlayerInputHandler : MonoBehaviour
         if (pause != null) pause.performed -= OnPause;
     }
 
-    void OnEnable()  => actionsAsset?.Enable();
+    void OnEnable()
+    {
+        actionsAsset?.Enable();
+        // Гарантируем, что кэш сброшен при включении
+        _cachedMove = Vector2.zero;
+        _cachedLook = Vector2.zero;
+    }
+
     void OnDisable() => actionsAsset?.Disable();
+
 
     private void OnPause(InputAction.CallbackContext _) => PausePressed?.Invoke();
 }

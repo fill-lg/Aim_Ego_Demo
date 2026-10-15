@@ -40,12 +40,34 @@ public class Hud : MonoBehaviour
     {
         shoot = GetComponentInParent<PlayerShooting>();
         health = GetComponentInParent<PlayerHealth>();
-        if (shoot != null) shoot.HitConfirmed += OnHit;
+        if (shoot != null)
+        {
+            shoot.HitConfirmed += OnHit;
+            shoot.AmmoChanged += UpdateAmmo;
+            shoot.WeaponSwitched += UpdateWeaponInfo;
+            shoot.ReloadStateChanged += OnReloadStateChanged;
+            shoot.BloomChanged += UpdateCrosshair;
+        }
+        if (health != null)
+        {
+            health.OnHealthChanged += UpdateHealth;
+        }
     }
 
     void OnDestroy()
     {
-        if (shoot != null) shoot.HitConfirmed -= OnHit;
+        if (shoot != null)
+        {
+            shoot.HitConfirmed -= OnHit;
+            shoot.AmmoChanged -= UpdateAmmo;
+            shoot.WeaponSwitched -= UpdateWeaponInfo;
+            shoot.ReloadStateChanged -= OnReloadStateChanged;
+            shoot.BloomChanged -= UpdateCrosshair;
+        }
+        if (health != null)
+        {
+            health.OnHealthChanged -= UpdateHealth;
+        }
     }
 
     void Update()
@@ -55,7 +77,56 @@ public class Hud : MonoBehaviour
 
         float dt = Time.deltaTime;
 
-        // Прицел расходится от разброса
+        // Хитмаркер гаснет за 0.15 с (это таймер, оставляем в Update)
+        if (hitmarker != null)
+        {
+            float left = hitmarkerUntil - Time.time;
+            hitmarker.alpha = Mathf.Clamp01(left / 0.15f);
+        }
+
+        // Полоска перезарядки (прогресс — непрерывное значение, оставляем в Update)
+        if (reloadRoot != null && shoot.IsReloading)
+        {
+            if (reloadFill != null)
+                reloadFill.anchorMax = new Vector2(Mathf.Clamp01(shoot.ReloadProgress), 1f);
+        }
+    }
+
+    void UpdateAmmo()
+    {
+        if (ammoText != null && shoot != null)
+            ammoText.text = shoot.CurrentMag + " / " + shoot.CurrentReserve;
+        UpdateSlots();
+    }
+
+    void UpdateWeaponInfo(int slot, WeaponConfig config)
+    {
+        if (weaponNameText != null && config != null)
+            weaponNameText.text = config.displayName;
+        UpdateSlots();
+    }
+
+    void OnReloadStateChanged(bool isReloading)
+    {
+        if (reloadRoot != null)
+            reloadRoot.SetActive(isReloading);
+    }
+
+    void UpdateHealth(float current, float max)
+    {
+        if (health == null) return;
+        float ratio = max > 0f ? current / max : 0f;
+        if (hpFill != null) hpFill.anchorMax = new Vector2(ratio, 1f);
+        if (hpText != null)
+        {
+            hpText.text = Mathf.CeilToInt(current).ToString();
+            hpText.color = Color.Lerp(new Color(1f, 0.35f, 0.3f), Color.white, ratio);
+        }
+    }
+
+    void UpdateCrosshair()
+    {
+        if (shoot == null || shoot.Config == null) return;
         float gap = crosshairBaseGap + (shoot.Config.baseSpread + shoot.Bloom) * crosshairSpreadScale;
         if (crosshairBars != null && crosshairBars.Length == 4)
         {
@@ -64,47 +135,11 @@ public class Hud : MonoBehaviour
             SetBar(crosshairBars[2], new Vector2(-gap - 4f, 0f), new Vector2(8f, 2f));
             SetBar(crosshairBars[3], new Vector2(gap + 4f, 0f), new Vector2(8f, 2f));
         }
-
-        // Хитмаркер гаснет за 0.15 с
-        if (hitmarker != null)
-        {
-            float left = hitmarkerUntil - Time.time;
-            hitmarker.alpha = Mathf.Clamp01(left / 0.15f);
-        }
-
-        // Полоска перезарядки
-        if (reloadRoot != null)
-        {
-            reloadRoot.SetActive(shoot.IsReloading);
-            if (reloadFill != null && shoot.IsReloading)
-                reloadFill.anchorMax = new Vector2(Mathf.Clamp01(shoot.ReloadProgress), 1f);
-        }
-
-        // Здоровье
-        if (health != null)
-        {
-            float ratio = health.maxHealth > 0f ? health.Current / health.maxHealth : 0f;
-            if (hpFill != null) hpFill.anchorMax = new Vector2(ratio, 1f);
-            if (hpText != null)
-            {
-                hpText.text = Mathf.CeilToInt(health.Current).ToString();
-                hpText.color = Color.Lerp(new Color(1f, 0.35f, 0.3f), Color.white, ratio);
-            }
-        }
-
-        // Патроны
-        if (ammoText != null)
-            ammoText.text = shoot.CurrentMag + " / " + shoot.CurrentReserve;
-        if (weaponNameText != null && shoot.Config != null)
-            weaponNameText.text = shoot.Config.displayName;
-
-        // Слоты оружия: имена и подсветка активного
-        UpdateSlots();
     }
 
     void UpdateSlots()
     {
-        if (slotTexts == null || shoot.loadout == null) return;
+        if (slotTexts == null || shoot == null || shoot.loadout == null) return;
         if (builtSlots == shoot.CurrentSlot && slotTexts[0] != null && slotTexts[0].text.Length > 0) return;
 
         for (int i = 0; i < slotTexts.Length && i < shoot.loadout.Length; i++)
