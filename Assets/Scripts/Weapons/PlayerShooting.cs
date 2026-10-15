@@ -29,6 +29,10 @@ public class PlayerShooting : MonoBehaviour
     [Header("Смена оружия")]
     public float equipTime = 0.5f;
 
+    [Header("Звук")]
+    [Tooltip("2D-источник для щелчков и звуков перезарядки. Пусто — создастся сам")]
+    public AudioSource sfx;
+
     // ===== Состояние =====
     private GameObject[] viewModels;
     private int currentSlot;
@@ -39,8 +43,12 @@ public class PlayerShooting : MonoBehaviour
     private float equipTimer;     // время после смены оружия
     private float reloadTimer;
     private bool reloading;
+    private int reloadStage;    // какой звук перезарядки уже сыгран
     private Transform muzzle;
     private MuzzleFlash flash;
+
+    // Доли ReloadProgress, на которых играют звуки этапов (синхронно с анимацией вьюмодели)
+    static readonly float[] ReloadStages = { WeaponViewModel.TMagOut, WeaponViewModel.TMagIn, WeaponViewModel.TRack };
 
     private static readonly RaycastHit[] hits = new RaycastHit[32];
     private static readonly DistanceComparer comparer = new DistanceComparer();
@@ -64,6 +72,13 @@ public class PlayerShooting : MonoBehaviour
         if (input == null) input = GetComponent<PlayerInputHandler>();
         if (eyes == null) eyes = GetComponentInChildren<Camera>();
         if (weaponHolder == null && eyes != null) weaponHolder = eyes.transform.Find("WeaponHolder");
+        if (sfx == null)
+        {
+            sfx = gameObject.AddComponent<AudioSource>();
+            sfx.spatialBlend = 0f;   // щелчки — 2D, прямо в уши
+            sfx.playOnAwake = false;
+            sfx.dopplerLevel = 0f;
+        }
 
         int n = loadout != null ? loadout.Length : 0;
         viewModels = new GameObject[n];
@@ -120,7 +135,22 @@ public class PlayerShooting : MonoBehaviour
         if (reloading)
         {
             reloadTimer -= dt;
+
+            // Звуки этапов точно по таймлайну анимации вьюмодели
+            float p = ReloadProgress;
+            while (reloadStage < ReloadStages.Length && p >= ReloadStages[reloadStage])
+            {
+                PlaySfx(reloadStage == 0 ? Config.magOutSound
+                     : reloadStage == 1 ? Config.magInSound
+                     : Config.rackSound);
+                reloadStage++;
+            }
+
             if (reloadTimer <= 0f) FinishReload();
+        }
+        else if (reloadStage != 0)
+        {
+            reloadStage = 0; // перезарядка отменена свапом — сброс
         }
 
         HandleFire();
@@ -171,6 +201,7 @@ public class PlayerShooting : MonoBehaviour
         if (mag[currentSlot] >= Config.magazineSize || reserve[currentSlot] <= 0) return;
 
         reloading = true;
+        reloadStage = 0;
         reloadTimer = Config.reloadTime;
     }
 
@@ -196,6 +227,8 @@ public class PlayerShooting : MonoBehaviour
 
         if (mag[currentSlot] <= 0)
         {
+            cooldown = 0.3f; // чтобы сухие щелчки не строчили очередью
+            PlaySfx(Config.dryFireSound);
             TryReload(); // магазин пуст — перезаряжаемся автоматически
             return;
         }
@@ -263,7 +296,19 @@ public class PlayerShooting : MonoBehaviour
         if (cam != null) cam.AddRecoil(Config.recoilPitch, Config.recoilYaw);
 
         var vmAnim = viewModels[currentSlot] != null ? viewModels[currentSlot].GetComponent<WeaponViewModel>() : null;
-        if (vmAnim != null) vmAnim.Kick(0.05f, 4f);
+        if (vmAnim != null)
+        {
+            vmAnim.Kick(0.05f, 4f);
+            vmAnim.CycleSlide();
+        }
+    }
+
+    // 2D-щелчки с лёгкой вариацией питча, чтобы не звучали роботом
+    void PlaySfx(AudioClip clip, float volume = 0.85f)
+    {
+        if (clip == null || sfx == null) return;
+        sfx.pitch = UnityEngine.Random.Range(0.94f, 1.06f);
+        sfx.PlayOneShot(clip, volume);
     }
 
     void SpawnDecal(RaycastHit hit)

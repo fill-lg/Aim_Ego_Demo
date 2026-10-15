@@ -49,7 +49,14 @@ public class WeaponConfig : ScriptableObject
     public float tracerWidth = 0.02f;
     public float tracerTime = 0.05f;
 
-    [Header("Звук (заполняется в фазе 5)")]
+    [Header("Звук (заполняет сетап-скрипт фазы 1.6)")]
     public AudioClip fireSound;
-    public AudioClip reloadSound;
+    [Tooltip("Щелчок при выстреле с пустым магазином")]
+    public AudioClip dryFireSound;
+    [Tooltip("Магазин вышел (начало перезарядки)")]
+    public AudioClip magOutSound;
+    [Tooltip("Магазин вставлен")]
+    public AudioClip magInSound;
+    [Tooltip("Передёргивание затвора (конец перезарядки)")]
+    public AudioClip rackSound;
 }
