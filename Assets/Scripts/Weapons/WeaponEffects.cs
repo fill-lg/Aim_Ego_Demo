@@ -15,7 +15,7 @@ public class WeaponEffects : MonoBehaviour
     public float decalLifetime = 12f;
 
     private ObjectPool<BulletDecal> _decalPool;
-    private ObjectPool<GameObject> _impactPool; // В Unity GameObject не Component, используем обертку или упростим
+    private ObjectPool<GameObject> _impactPool;
 
     void Awake()
     {
@@ -48,7 +48,14 @@ public class WeaponEffects : MonoBehaviour
         meshRenderer.sharedMaterial = decalMaterial;
 
         _decalPool = new ObjectPool<BulletDecal>(decalPrefab.GetComponent<BulletDecal>(), 20);
-
+        if (impactPrefab != null)
+        {
+            _impactPool = new ObjectPool<GameObject>(impactPrefab, 20);
+        }
+        else
+        {
+            Debug.LogWarning("WeaponEffects: impactPrefab не назначен в Инспекторе! Пулинг частиц отключен.", this);
+        }
         // Для частиц используем обычный Instantiate, так как они часто имеют свои системы пулинга
         // или мы можем реализовать отдельный пул GameObject.
     }
@@ -77,11 +84,16 @@ public class WeaponEffects : MonoBehaviour
 
         decal.Initialize(_decalPool, decalLifetime);
 
-        // Частицы
+        // Частицы из пула
         if (impactPrefab != null)
         {
-            var impact = Instantiate(impactPrefab, hit.point + hit.normal * 0.02f, Quaternion.LookRotation(hit.normal));
-            Destroy(impact, 1.5f);
+            var impact = _impactPool.Get();
+            impact.transform.position = hit.point + hit.normal * 0.02f;
+            impact.transform.rotation = Quaternion.LookRotation(hit.normal);
+
+            var pooled = impact.GetComponent<PooledObject>();
+            if (pooled == null) pooled = impact.AddComponent<PooledObject>();
+            pooled.Initialize(obj => _impactPool.Return(obj), 1.5f);
         }
     }
 }

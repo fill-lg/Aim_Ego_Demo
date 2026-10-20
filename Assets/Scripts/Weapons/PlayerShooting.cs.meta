@@ -1,2 +1,19 @@
 fileFormatVersion: 2
 guid: 0999ad1aa468c2c478454f0768084ea8
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - input: {instanceID: 0}
+  - eyes: {instanceID: 0}
+  - weaponHolder: {instanceID: 0}
+  - knifeConfig: {fileID: 11400000, guid: 9602c3bffe6782a4ea5e292471241eae, type: 2}
+  - tracerMaterial: {instanceID: 0}
+  - decalMaterial: {instanceID: 0}
+  - impactPrefab: {instanceID: 0}
+  - sfx: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

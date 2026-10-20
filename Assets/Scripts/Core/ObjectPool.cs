@@ -12,7 +12,13 @@ public class ObjectPool<T> where T : UnityEngine.Object
 
     public ObjectPool(T prefab, int initialSize = 10)
     {
+        if (prefab == null)
+        {
+            Debug.LogError($"ObjectPool: Префаб для пула равен null! Пул не будет инициализирован.");
+            return;
+        }
         _prefab = prefab;
+
 
         // Создаем контейнер в сцене, чтобы не засорять иерархию
         GameObject containerGo = new GameObject($"Pool_{prefab.name}");

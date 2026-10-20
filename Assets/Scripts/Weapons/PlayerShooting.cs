@@ -15,8 +15,10 @@ public class PlayerShooting : MonoBehaviour
     [Tooltip("WeaponHolder под камерой — туда спавнятся вьюмодели")]
     public Transform weaponHolder;
 
-    [Header("Снаряжение (слоты 1 и 2)")]
-    public WeaponConfig[] loadout = new WeaponConfig[2];
+    [Header("Снаряжение (слоты 1, 2 и 3)")]
+    public WeaponConfig[] loadout = new WeaponConfig[3];
+    [Tooltip("Оружие для 3-го слота (всегда нож)")]
+    public WeaponConfig knifeConfig;
 
     [Header("Эффекты попаданий")]
     public Material tracerMaterial;
@@ -49,6 +51,8 @@ public class PlayerShooting : MonoBehaviour
     private Transform muzzle;
     private MuzzleFlash flash;
     private WeaponEffects effects;
+    private PlayerCamera _cachedCamera;
+    private WeaponViewModel _currentViewModel;
 
 
     // Доли ReloadProgress, на которых играют звуки этапов (синхронно с анимацией вьюмодели)
@@ -74,6 +78,7 @@ public class PlayerShooting : MonoBehaviour
     public event Action BloomChanged;
 
 
+    private float defaultFOV;
 
     void Start()
     {
@@ -90,6 +95,23 @@ public class PlayerShooting : MonoBehaviour
 
         effects = GetComponent<WeaponEffects>();
         if (effects == null) effects = gameObject.AddComponent<WeaponEffects>();
+
+        _cachedCamera = GetComponentInChildren<PlayerCamera>();
+
+        if (eyes != null) defaultFOV = eyes.fieldOfView;
+
+        if (loadout == null || loadout.Length < 3)
+        {
+            WeaponConfig[] newLoadout = new WeaponConfig[3];
+            if (loadout != null)
+            {
+                for (int i = 0; i < loadout.Length && i < 3; i++)
+                    newLoadout[i] = loadout[i];
+            }
+            loadout = newLoadout;
+        }
+
+        if (knifeConfig != null) loadout[2] = knifeConfig;
 
         int n = loadout != null ? loadout.Length : 0;
         viewModels = new GameObject[n];
@@ -137,7 +159,13 @@ public class PlayerShooting : MonoBehaviour
         cooldown -= dt;
         equipTimer -= dt;
 
-        // Разброс восстанавливается, когда не стреляешь
+        if (eyes != null)
+        {
+            float targetFOV = input.AimHeld ? Config.adsFOV : defaultFOV;
+            float zoomSpeed = Config.adsTransitionSpeed;
+            eyes.fieldOfView = Mathf.Lerp(eyes.fieldOfView, targetFOV, dt * zoomSpeed);
+        }
+
         float prevBloom = bloom;
         bloom = Mathf.MoveTowards(bloom, 0f, Config.spreadRecovery * dt);
         if (Mathf.Abs(bloom - prevBloom) > 0.001f) BloomChanged?.Invoke();
@@ -149,8 +177,6 @@ public class PlayerShooting : MonoBehaviour
         if (reloading)
         {
             reloadTimer -= dt;
-
-            // Звуки этапов точно по таймлайну анимации вьюмодели
             float p = ReloadProgress;
             while (reloadStage < ReloadStages.Length && p >= ReloadStages[reloadStage])
             {
@@ -164,30 +190,32 @@ public class PlayerShooting : MonoBehaviour
         }
         else if (reloadStage != 0)
         {
-            reloadStage = 0; // перезарядка отменена свапом — сброс
+            reloadStage = 0;
         }
 
         HandleFire();
     }
 
 
-    // ===== СМЕНА ОРУЖИЯ =====
     void HandleSwitch()
     {
         int target = currentSlot;
         if (input.Slot1Pressed && loadout.Length > 0) target = 0;
         else if (input.Slot2Pressed && loadout.Length > 1) target = 1;
-        else if (input.QuickSwapPressed) target = currentSlot == 0 ? 1 : 0; // Q — быстрый свап
+        else if (input.Slot3Pressed && loadout.Length > 2) target = 2;
 
-        if (target == currentSlot || loadout[target] == null) return;
-
-        Debug.Log("Оружие: " + loadout[target].displayName, this);
+        if (target == currentSlot) return;
+        if (target >= loadout.Length || loadout[target] == null) return;
 
         if (viewModels[currentSlot] != null) viewModels[currentSlot].SetActive(false);
         currentSlot = target;
         if (viewModels[currentSlot] != null) viewModels[currentSlot].SetActive(true);
 
-        reloading = false; // смена оружия отменяет перезарядку
+        _currentViewModel = viewModels[currentSlot] != null ? viewModels[currentSlot].GetComponent<WeaponViewModel>() : null;
+
+        if (_currentViewModel != null) _currentViewModel.Equip();
+
+        reloading = false;
         bloom = 0f;
         cooldown = 0f;
         equipTimer = equipTime;
@@ -209,7 +237,6 @@ public class PlayerShooting : MonoBehaviour
         if (muzzle == null && eyes != null) muzzle = eyes.transform;
     }
 
-    // ===== ПЕРЕЗАРЯДКА =====
     void TryReload()
     {
         if (reloading || Config == null) return;
@@ -219,6 +246,9 @@ public class PlayerShooting : MonoBehaviour
         ReloadStateChanged?.Invoke(true);
         reloadStage = 0;
         reloadTimer = Config.reloadTime;
+
+        if (_currentViewModel != null && _currentViewModel.animator != null)
+            _currentViewModel.animator.SetTrigger("Reload");
     }
 
     void FinishReload()
@@ -235,72 +265,46 @@ public class PlayerShooting : MonoBehaviour
     }
 
 
-    // ===== ОГОНЬ =====
     void HandleFire()
     {
+        if (input == null || Config == null) return;
         if (cooldown > 0f || equipTimer > 0f || reloading) return;
 
         bool trigger = Config.automatic ? input.FireHeld : input.FirePressed;
         if (!trigger) return;
 
+        if (Config.weaponType == WeaponType.Melee)
+        {
+            if (cooldown <= 0f)
+            {
+                MeleeAttack();
+                cooldown = Config.fireInterval;
+            }
+            return;
+        }
+
         if (mag[currentSlot] <= 0)
         {
-            cooldown = 0.3f; // чтобы сухие щелчки не строчили очередью
+            cooldown = 0.3f;
             PlaySfx(Config.dryFireSound);
-            TryReload(); // магазин пуст — перезаряжаемся автоматически
+            TryReload();
             return;
         }
 
         Fire();
     }
 
-    void Fire()
+    void MeleeAttack()
     {
-        cooldown = Config.fireInterval;
-        mag[currentSlot]--;
-        AmmoChanged?.Invoke();
+        if (_currentViewModel != null) _currentViewModel.Attack();
 
-        // Обработка спрей-паттерна
-        if (Time.time - lastShotTime > 0.5f) shotsFiredInBurst = 0;
-        lastShotTime = Time.time;
-
-        Vector2 patternOffset = Vector2.zero;
-        if (Config.sprayPattern != null && Config.sprayPattern.Length > 0)
-        {
-            if (shotsFiredInBurst < Config.sprayPattern.Length)
-            {
-                patternOffset = Config.sprayPattern[shotsFiredInBurst];
-            }
-            else
-            {
-                // После конца паттерна используем последний элемент + рандом
-                patternOffset = Config.sprayPattern[Config.sprayPattern.Length - 1] + UnityEngine.Random.insideUnitCircle * 0.1f;
-            }
-            shotsFiredInBurst++;
-        }
-        else
-        {
-            // Если паттерна нет, просто не добавляем смещение (будет работать только bloom)
-            shotsFiredInBurst = 0;
-        }
-
-        // Направление: паттерн + случайный разброс (bloom)
-        float spreadDeg = Config.baseSpread + bloom;
-        Vector2 randomSpread = UnityEngine.Random.insideUnitCircle * spreadDeg;
-        Vector3 dir = eyes.transform.rotation * Quaternion.Euler(patternOffset.y + randomSpread.y, patternOffset.x + randomSpread.x, 0f) * Vector3.forward;
+        float meleeRange = 2.5f;
+        Vector3 dir = eyes.transform.forward;
         Vector3 origin = eyes.transform.position;
 
-        // Хитскан: ближайшее попадание, пропуская коллайдеры самого игрока
-        Vector3 endPoint = origin + dir * Config.range;
-        int count = Physics.RaycastNonAlloc(new Ray(origin, dir), hits, Config.range, ~0, QueryTriggerInteraction.Ignore);
-        Array.Sort(hits, 0, count, comparer);
-
-        for (int i = 0; i < count; i++)
+        if (Physics.SphereCast(origin, 0.5f, dir, out RaycastHit hit, meleeRange, ~0, QueryTriggerInteraction.Ignore))
         {
-            if (hits[i].collider.transform.IsChildOf(transform)) continue;
-
-            RaycastHit hit = hits[i];
-            endPoint = hit.point;
+            if (hit.collider.transform.IsChildOf(transform)) return;
 
             var health = hit.collider.GetComponentInParent<PlayerHealth>();
             if (health != null && health.IsAlive)
@@ -314,22 +318,75 @@ public class PlayerShooting : MonoBehaviour
             {
                 effects.PlayImpact(hit, Config);
             }
-            break;
+        }
+    }
+
+    void Fire()
+    {
+        cooldown = Config.fireInterval;
+        mag[currentSlot]--;
+        AmmoChanged?.Invoke();
+
+        if (Time.time - lastShotTime > 0.5f) shotsFiredInBurst = 0;
+        lastShotTime = Time.time;
+
+        // 1. Расчет смещения по паттерну (теперь это только для полета пули)
+        Vector2 patternOffset = Vector2.zero;
+        if (Config.sprayPattern != null && Config.sprayPattern.Length > 0)
+        {
+            if (shotsFiredInBurst < Config.sprayPattern.Length)
+                patternOffset = Config.sprayPattern[shotsFiredInBurst];
+            else
+                patternOffset = Config.sprayPattern[Config.sprayPattern.Length - 1] * 0.2f + UnityEngine.Random.insideUnitCircle * 0.1f;
+
+            shotsFiredInBurst++;
         }
 
-        // Эффекты выстрела через WeaponEffects
+        // 2. Визуальная тряска (НЕ меняет направление пули, просто для эффекта)
+        var cam = _cachedCamera;
+        if (cam != null)
+        {
+            float shakeMult = input.AimHeld ? Config.adsRecoilMultiplier : 1f;
+            cam.AddRecoil(patternOffset.y * shakeMult, patternOffset.x * shakeMult);
+        }
+
+        // 3. РАСЧЕТ НАПРАВЛЕНИЯ ПУЛИ
+        float currentSpreadMult = input.AimHeld ? Config.adsSpreadMultiplier : 1f;
+        float spreadDeg = (Config.baseSpread + bloom) * currentSpreadMult;
+        Vector2 randomSpread = UnityEngine.Random.insideUnitCircle * spreadDeg;
+
+        // Направление = Взгляд + Паттерн + Рандом
+        Vector3 dir = eyes.transform.rotation * Quaternion.Euler(patternOffset.y + randomSpread.y, patternOffset.x + randomSpread.x, 0f) * Vector3.forward;
+        Vector3 origin = eyes.transform.position;
+
+        Vector3 endPoint = origin + dir * Config.range;
+        if (Physics.Raycast(origin, dir, out RaycastHit hit, Config.range, ~0, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.collider.transform.IsChildOf(transform))
+                endPoint = origin + dir * Config.range;
+            else
+            {
+                endPoint = hit.point;
+                var health = hit.collider.GetComponentInParent<PlayerHealth>();
+                if (health != null && health.IsAlive)
+                {
+                    var hitbox = hit.collider.GetComponentInParent<Hitbox>();
+                    float dmg = Config.damage * (hitbox != null ? hitbox.multiplier : 1f);
+                    health.TakeDamage(dmg, hit.point, dir);
+                    HitConfirmed?.Invoke(dmg, !health.IsAlive);
+                }
+                else effects.PlayImpact(hit, Config);
+            }
+        }
+
         effects.PlayMuzzleFlash(flash);
         effects.PlayTracer(muzzle != null ? muzzle.position : eyes.transform.position, endPoint, Config);
         if (Config.fireSound != null) AudioSource.PlayClipAtPoint(Config.fireSound, muzzle != null ? muzzle.position : eyes.transform.position, 0.9f);
 
-        // Разброс и отдача растут
         bloom = Mathf.Min(bloom + Config.spreadPerShot, Config.maxSpread);
         BloomChanged?.Invoke();
 
-        var cam = GetComponentInChildren<PlayerCamera>();
-        if (cam != null) cam.AddRecoil(Config.recoilPitch, Config.recoilYaw);
-
-        var vmAnim = viewModels[currentSlot] != null ? viewModels[currentSlot].GetComponent<WeaponViewModel>() : null;
+        var vmAnim = _currentViewModel;
         if (vmAnim != null)
         {
             vmAnim.Kick(0.05f, 4f);
@@ -337,7 +394,6 @@ public class PlayerShooting : MonoBehaviour
         }
     }
 
-    // 2D-щелчки с лёгкой вариацией питча, чтобы не звучали роботом
     void PlaySfx(AudioClip clip, float volume = 0.85f)
     {
         if (clip == null || sfx == null) return;

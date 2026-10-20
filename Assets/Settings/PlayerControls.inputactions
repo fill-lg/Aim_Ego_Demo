@@ -43,6 +43,15 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "Zoom",
+                    "type": "Button",
+                    "id": "a0b1d971-fb82-4a02-9324-a68645c6260b",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Fire",
                     "type": "Button",
                     "id": "030e298a-8f50-44bc-bbd5-264ab5831ff6",
@@ -73,6 +82,15 @@
                     "name": "Slot2",
                     "type": "Button",
                     "id": "98926fce-e232-4c72-a3e4-2eca74a5aedd",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Slot3",
+                    "type": "Button",
+                    "id": "1f4ca54e-350e-49b9-a0fe-b8dd115578ac",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -240,6 +258,28 @@
                     "processors": "",
                     "groups": "",
                     "action": "QuickSwap",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "40d687ac-8e50-409e-a28a-c9c998d251a5",
+                    "path": "<Keyboard>/3",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Slot3",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "4c2f3ee8-e0f3-4434-98ec-ac698b98f7d0",
+                    "path": "<Mouse>/rightButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Zoom",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

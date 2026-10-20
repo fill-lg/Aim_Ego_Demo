@@ -14,7 +14,8 @@ public class PlayerInputHandler : MonoBehaviour
     [Tooltip("Ассет ввода PlayerControls.inputactions")]
     public InputActionAsset actionsAsset;
 
-    private InputAction move, look, jump, crouch, fire, reload, slot1, slot2, quickSwap, pause;
+    private InputAction move, look, jump, crouch, fire, reload, slot1, slot2, slot3, quickSwap, pause, aim, sprint;
+
 
     /// <summary>Событие: нажат Esc. Пока используется только для снятия захвата курсора, в фазе UI — для меню паузы.</summary>
     public event Action PausePressed;
@@ -36,7 +37,10 @@ public class PlayerInputHandler : MonoBehaviour
     public bool ReloadPressed  => reload != null && reload.WasPressedThisFrame();
     public bool Slot1Pressed   => slot1 != null && slot1.WasPressedThisFrame();
     public bool Slot2Pressed   => slot2 != null && slot2.WasPressedThisFrame();
+    public bool Slot3Pressed   => slot3 != null && slot3.WasPressedThisFrame();
     public bool QuickSwapPressed => quickSwap != null && quickSwap.WasPressedThisFrame();
+    public bool AimHeld        => aim != null && aim.IsPressed();
+    public bool SprintHeld     => sprint != null && sprint.IsPressed();
 
     private Vector2 _cachedMove;
     private Vector2 _cachedLook;
@@ -65,11 +69,31 @@ public class PlayerInputHandler : MonoBehaviour
         reload = actionsAsset.FindAction("Player/Reload", true);
         slot1  = actionsAsset.FindAction("Player/Slot1", true);
         slot2  = actionsAsset.FindAction("Player/Slot2", true);
-        // QuickSwap появился позже — в старых ассетах его может не быть, потому без throwOnMissing
+
+        // Ищем Slot3 и Aim без throwOnMissing, чтобы добавить их программно, если их нет
+        slot3  = actionsAsset.FindAction("Player/Slot3", false);
+        aim    = actionsAsset.FindAction("Player/Aim", false);
+        sprint = actionsAsset.FindAction("Player/Sprint", false);
         quickSwap = actionsAsset.FindAction("Player/QuickSwap", false);
         pause  = actionsAsset.FindAction("UI/Pause", true);
 
+        EnsureActionExists("Player", "Slot3");
+        EnsureActionExists("Player", "Aim");
+        EnsureActionExists("Player", "Sprint");
+
         if (pause != null) pause.performed += OnPause;
+    }
+
+    private void EnsureActionExists(string mapName, string actionName)
+    {
+        var map = actionsAsset.FindActionMap(mapName);
+        if (map == null) return;
+
+        if (map.FindAction(actionName) == null)
+        {
+            var newAction = map.AddAction(actionName, InputActionType.Button);
+            Debug.Log($"[InputHandler] Динамически создан экшен {mapName}/{actionName}");
+        }
     }
 
     void OnDestroy()

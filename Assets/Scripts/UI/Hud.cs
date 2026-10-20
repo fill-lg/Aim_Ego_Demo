@@ -12,9 +12,14 @@ public class Hud : MonoBehaviour
     public RectTransform[] crosshairBars; // верх, низ, лево, право
     public float crosshairBaseGap = 6f;
     public float crosshairSpreadScale = 14f;
+    public float crosshairLineLength = 8f;
+    public float crosshairLineThickness = 2f;
+    public float crosshairSmoothing = 15f;
 
     [Header("Хитмаркер")]
     public CanvasGroup hitmarker;
+    public AudioClip hitSound;
+    public float hitmarkerPopScale = 1.2f;
 
     [Header("Перезарядка")]
     public GameObject reloadRoot;
@@ -35,6 +40,9 @@ public class Hud : MonoBehaviour
     private PlayerHealth health;
     private float hitmarkerUntil;
     private int builtSlots = -1;
+    private float targetCrosshairGap;
+    private float currentCrosshairGap;
+    private float currentHitmarkerScale = 1f;
 
     void Start()
     {
@@ -73,22 +81,38 @@ public class Hud : MonoBehaviour
     void Update()
     {
         if (shoot == null) return;
-        if (shoot.Config == null) return;
 
         float dt = Time.deltaTime;
 
-        // Хитмаркер гаснет за 0.15 с (это таймер, оставляем в Update)
+        // Сглаживание прицела
+        if (shoot.Config != null)
+        {
+            currentCrosshairGap = Mathf.Lerp(currentCrosshairGap, targetCrosshairGap, dt * crosshairSmoothing);
+            UpdateCrosshairVisuals();
+        }
+
+        // Хитмаркер: затухание и возврат масштаба
         if (hitmarker != null)
         {
             float left = hitmarkerUntil - Time.time;
             hitmarker.alpha = Mathf.Clamp01(left / 0.15f);
+
+            currentHitmarkerScale = Mathf.Lerp(currentHitmarkerScale, 1f, dt * 20f);
+            hitmarker.transform.localScale = Vector3.one * currentHitmarkerScale;
         }
 
-        // Полоска перезарядки (прогресс — непрерывное значение, оставляем в Update)
-        if (reloadRoot != null && shoot.IsReloading)
+        // Полоска перезарядки
+        if (reloadRoot != null)
         {
-            if (reloadFill != null)
-                reloadFill.anchorMax = new Vector2(Mathf.Clamp01(shoot.ReloadProgress), 1f);
+            if (shoot.IsReloading && shoot.Config != null)
+            {
+                if (reloadFill != null)
+                    reloadFill.anchorMax = new Vector2(Mathf.Clamp01(shoot.ReloadProgress), 1f);
+            }
+            else
+            {
+                reloadRoot.SetActive(false);
+            }
         }
     }
 
@@ -127,14 +151,18 @@ public class Hud : MonoBehaviour
     void UpdateCrosshair()
     {
         if (shoot == null || shoot.Config == null) return;
-        float gap = crosshairBaseGap + (shoot.Config.baseSpread + shoot.Bloom) * crosshairSpreadScale;
-        if (crosshairBars != null && crosshairBars.Length == 4)
-        {
-            SetBar(crosshairBars[0], new Vector2(0f, gap + 4f), new Vector2(2f, 8f));
-            SetBar(crosshairBars[1], new Vector2(0f, -gap - 4f), new Vector2(2f, 8f));
-            SetBar(crosshairBars[2], new Vector2(-gap - 4f, 0f), new Vector2(8f, 2f));
-            SetBar(crosshairBars[3], new Vector2(gap + 4f, 0f), new Vector2(8f, 2f));
-        }
+        targetCrosshairGap = crosshairBaseGap + (shoot.Config.baseSpread + shoot.Bloom) * crosshairSpreadScale;
+    }
+
+    void UpdateCrosshairVisuals()
+    {
+        if (crosshairBars == null || crosshairBars.Length != 4) return;
+
+        float offset = currentCrosshairGap + 4f;
+        SetBar(crosshairBars[0], new Vector2(0f, offset), new Vector2(crosshairLineThickness, crosshairLineLength));
+        SetBar(crosshairBars[1], new Vector2(0f, -offset), new Vector2(crosshairLineThickness, crosshairLineLength));
+        SetBar(crosshairBars[2], new Vector2(-offset, 0f), new Vector2(crosshairLineLength, crosshairLineThickness));
+        SetBar(crosshairBars[3], new Vector2(offset, 0f), new Vector2(crosshairLineLength, crosshairLineThickness));
     }
 
     void UpdateSlots()
@@ -162,5 +190,11 @@ public class Hud : MonoBehaviour
     public void OnHit(float damage, bool killed)
     {
         hitmarkerUntil = Time.time + 0.15f;
+        currentHitmarkerScale = hitmarkerPopScale;
+
+        if (hitSound != null)
+        {
+            AudioSource.PlayClipAtPoint(hitSound, Camera.main != null ? Camera.main.transform.position : Vector3.zero, 1f);
+        }
     }
 }

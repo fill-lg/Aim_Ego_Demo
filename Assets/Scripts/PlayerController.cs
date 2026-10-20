@@ -229,6 +229,8 @@ public class PlayerController : MonoBehaviour
     // ===== ГЕТТЕРЫ ДЛЯ ДРУГИХ СИСТЕМ (анимации, звуки, оружие, сеть) =====
     public bool IsGrounded() => isGrounded;
     public bool IsCrouching() => isCrouching;
+    public bool IsSprinting() => !isCrouching && input.SprintHeld && input.Move.y > 0.1f;
+    public bool IsJumping() => !isGrounded && verticalVelocity > 0;
     public float GetHorizontalSpeed() => horizontalVelocity.magnitude;
     public Vector3 GetVelocity() => horizontalVelocity + Vector3.up * verticalVelocity;
     public float GetHeight() => currentHeight;

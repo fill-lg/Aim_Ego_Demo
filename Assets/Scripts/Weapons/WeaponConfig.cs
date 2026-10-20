@@ -4,10 +4,13 @@ using UnityEngine;
 /// Конфиг оружия. Вся балансировка — в ассетах (Assets/Settings/Weapons),
 /// код один и тот же для пистолета и автомата.
 /// </summary>
+public enum WeaponType { Firearm, Melee }
+
 [CreateAssetMenu(fileName = "WEAP_New", menuName = "AimEgo/Weapon Config")]
 public class WeaponConfig : ScriptableObject
 {
     [Header("Идентификация")]
+    public WeaponType weaponType = WeaponType.Firearm;
     public string displayName = "Оружие";
     [Tooltip("Автомат: огонь при удержании ЛКМ. Выкл — один выстрел на нажатие")]
     public bool automatic = false;
@@ -63,4 +66,18 @@ public class WeaponConfig : ScriptableObject
     public AudioClip magInSound;
     [Tooltip("Передёргивание затвора (конец перезарядки)")]
     public AudioClip rackSound;
+
+    [Header("Прицеливание (ADS)")]
+    [Tooltip("Множитель разброса при прицеливании (например, 0.5 = в 2 раза точнее)")]
+    public float adsSpreadMultiplier = 0.5f;
+    [Tooltip("Множитель отдачи при прицеливании")]
+    public float adsRecoilMultiplier = 0.7f;
+    [Tooltip("Смещение вьюмодели в прицеле (relative to basePos)")]
+    public Vector3 adsPosition = new Vector3(0f, -0.1f, 0.1f);
+    [Tooltip("Поворот вьюмодели в прицеле")]
+    public Vector3 adsRotation = new Vector3(0f, 0f, 0f);
+    [Tooltip("Поле зрения камеры в прицеле")]
+    public float adsFOV = 40f;
+    [Tooltip("Скорость перехода в прицел")]
+    public float adsTransitionSpeed = 10f;
 }
