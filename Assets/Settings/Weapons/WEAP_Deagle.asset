@@ -12,7 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4cf6a191d414ec744b1460c826c0b8d1, type: 3}
   m_Name: WEAP_Deagle
   m_EditorClassIdentifier: Assembly-CSharp::WeaponConfig
+  weaponType: 0
   displayName: Desert Eagle
+  isDroppable: 1
   automatic: 0
   damage: 53
   range: 300
@@ -26,10 +28,27 @@ MonoBehaviour:
   spreadRecovery: 5
   recoilPitch: 3.5
   recoilYaw: 0.5
+  sprayPattern:
+  - {x: 0, y: 0}
+  - {x: 0, y: 0}
+  - {x: 0, y: 0}
+  - {x: 0, y: 0}
+  - {x: 0, y: 0}
+  - {x: 0, y: 0}
+  - {x: 0, y: 0}
   viewModelPrefab: {fileID: 476152893968654396, guid: e6e6fe80e2cb8db4b8c4f7b912f54ad8, type: 3}
   muzzleLocalPosition: {x: 0, y: 0.05, z: 0.35}
   tracerColor: {r: 1, g: 0.85, b: 0.55, a: 0.9}
   tracerWidth: 0.02
   tracerTime: 0.05
   fireSound: {fileID: 0}
-  reloadSound: {fileID: 0}
+  dryFireSound: {fileID: 0}
+  magOutSound: {fileID: 0}
+  magInSound: {fileID: 0}
+  rackSound: {fileID: 0}
+  adsSpreadMultiplier: 0.5
+  adsRecoilMultiplier: 0.7
+  adsPosition: {x: 0, y: -0.1, z: 0.1}
+  adsRotation: {x: 0, y: 0, z: 0}
+  adsFOV: 40
+  adsTransitionSpeed: 10

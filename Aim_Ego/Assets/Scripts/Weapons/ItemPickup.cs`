@@ -1,0 +1,46 @@
+using UnityEngine;
+
+/// <summary>
+/// Предмет, лежащий в мире. Содержит информацию о том, какое оружие он представляет.
+/// </summary>
+public class ItemPickup : MonoBehaviour
+{
+    [Header("Настройки")]
+    public WeaponConfig config;
+    [Tooltip("Префаб визуальной модели оружия на земле")]
+    public GameObject worldModelPrefab;
+
+    private GameObject _spawnedModel;
+
+    void Start()
+    {
+        if (config == null) return;
+
+        // Если есть префаб модели для мира, спавним его
+        if (worldModelPrefab != null)
+        {
+            _spawnedModel = Instantiate(worldModelPrefab, transform);
+            _spawnedModel.transform.localPosition = Vector3.zero;
+            _spawnedModel.transform.localRotation = Quaternion.identity;
+        }
+        else
+        {
+            // Если нет, используем вьюмодель как временную заплатку
+            if (config.viewModelPrefab != null)
+            {
+                _spawnedModel = Instantiate(config.viewModelPrefab, transform);
+                _spawnedModel.transform.localPosition = Vector3.zero;
+                _spawnedModel.transform.localRotation = Quaternion.identity;
+
+                // Отключаем скрипты вьюмодели, чтобы они не работали в мире
+                if (_spawnedModel.TryGetComponent<WeaponViewModel>(out var vm))
+                    Destroy(vm);
+            }
+        }
+    }
+
+    public void Despawn()
+    {
+        Destroy(gameObject);
+    }
+}

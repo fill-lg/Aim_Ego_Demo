@@ -125,8 +125,10 @@ public class Hud : MonoBehaviour
 
     void UpdateWeaponInfo(int slot, WeaponConfig config)
     {
-        if (weaponNameText != null && config != null)
-            weaponNameText.text = config.displayName;
+        if (weaponNameText != null)
+        {
+            weaponNameText.text = config != null ? config.displayName : "Пусто";
+        }
         UpdateSlots();
     }
 
@@ -168,13 +170,20 @@ public class Hud : MonoBehaviour
     void UpdateSlots()
     {
         if (slotTexts == null || shoot == null || shoot.loadout == null) return;
-        if (builtSlots == shoot.CurrentSlot && slotTexts[0] != null && slotTexts[0].text.Length > 0) return;
 
         for (int i = 0; i < slotTexts.Length && i < shoot.loadout.Length; i++)
         {
             var cfg = shoot.loadout[i];
-            if (cfg == null || slotTexts[i] == null) continue;
-            slotTexts[i].text = (i + 1) + "   " + cfg.displayName;
+            if (slotTexts[i] == null) continue;
+
+            if (cfg != null)
+            {
+                slotTexts[i].text = (i + 1) + "   " + cfg.displayName;
+            }
+            else
+            {
+                slotTexts[i].text = (i + 1) + "   ---";
+            }
             slotTexts[i].color = i == shoot.CurrentSlot ? activeSlotColor : inactiveSlotColor;
         }
         builtSlots = shoot.CurrentSlot;

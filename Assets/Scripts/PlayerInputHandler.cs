@@ -14,7 +14,7 @@ public class PlayerInputHandler : MonoBehaviour
     [Tooltip("Ассет ввода PlayerControls.inputactions")]
     public InputActionAsset actionsAsset;
 
-    private InputAction move, look, jump, crouch, fire, reload, slot1, slot2, slot3, quickSwap, pause, aim, sprint;
+    private InputAction move, look, jump, crouch, fire, reload, slot1, slot2, slot3, quickSwap, pause, aim, sprint, drop;
 
 
     /// <summary>Событие: нажат Esc. Пока используется только для снятия захвата курсора, в фазе UI — для меню паузы.</summary>
@@ -41,6 +41,7 @@ public class PlayerInputHandler : MonoBehaviour
     public bool QuickSwapPressed => quickSwap != null && quickSwap.WasPressedThisFrame();
     public bool AimHeld        => aim != null && aim.IsPressed();
     public bool SprintHeld     => sprint != null && sprint.IsPressed();
+    public bool DropPressed    => drop != null && drop.WasPressedThisFrame();
 
     private Vector2 _cachedMove;
     private Vector2 _cachedLook;
@@ -74,12 +75,14 @@ public class PlayerInputHandler : MonoBehaviour
         slot3  = actionsAsset.FindAction("Player/Slot3", false);
         aim    = actionsAsset.FindAction("Player/Aim", false);
         sprint = actionsAsset.FindAction("Player/Sprint", false);
+        drop   = actionsAsset.FindAction("Player/Drop", false);
         quickSwap = actionsAsset.FindAction("Player/QuickSwap", false);
         pause  = actionsAsset.FindAction("UI/Pause", true);
 
         EnsureActionExists("Player", "Slot3");
         EnsureActionExists("Player", "Aim");
         EnsureActionExists("Player", "Sprint");
+        EnsureActionExists("Player", "Drop");
 
         if (pause != null) pause.performed += OnPause;
     }

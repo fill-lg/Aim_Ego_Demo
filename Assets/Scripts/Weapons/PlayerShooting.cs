@@ -31,6 +31,13 @@ public class PlayerShooting : MonoBehaviour
     [Header("Смена оружия")]
     public float equipTime = 0.5f;
 
+    [Header("Подбор и выброс")]
+    public GameObject itemPickupPrefab;
+    public float pickupRange = 2f;
+    public LayerMask pickupMask;
+    [Tooltip("Задержка перед возможностью подобрать оружие после выброса")]
+    public float pickupCooldown = 1f;
+
     [Header("Звук")]
     [Tooltip("2D-источник для щелчков и звуков перезарядки. Пусто — создастся сам")]
     public AudioSource sfx;
@@ -44,6 +51,7 @@ public class PlayerShooting : MonoBehaviour
     private float cooldown;       // до следующего выстрела
     private float equipTimer;     // время после смены оружия
     private float reloadTimer;
+    private float pickupTimer;    // таймер КД на подбор
     private bool reloading;
     private int reloadStage;    // какой звук перезарядки уже сыгран
     private int shotsFiredInBurst; // счетчик выстрелов в очереди для спрея
@@ -53,7 +61,6 @@ public class PlayerShooting : MonoBehaviour
     private WeaponEffects effects;
     private PlayerCamera _cachedCamera;
     private WeaponViewModel _currentViewModel;
-
 
     // Доли ReloadProgress, на которых играют звуки этапов (синхронно с анимацией вьюмодели)
     static readonly float[] ReloadStages = { WeaponViewModel.TMagOut, WeaponViewModel.TMagIn, WeaponViewModel.TRack };
@@ -72,11 +79,9 @@ public class PlayerShooting : MonoBehaviour
 
     public event Action AmmoChanged;
     public event Action<int, WeaponConfig> WeaponSwitched;
-    /// (нанесённый урон, убил ли этим выстрелом) — для хитмаркера
     public event Action<float, bool> HitConfirmed;
     public event Action<bool> ReloadStateChanged;
     public event Action BloomChanged;
-
 
     private float defaultFOV;
 
@@ -88,14 +93,13 @@ public class PlayerShooting : MonoBehaviour
         if (sfx == null)
         {
             sfx = gameObject.AddComponent<AudioSource>();
-            sfx.spatialBlend = 0f;   // щелчки — 2D, прямо в уши
+            sfx.spatialBlend = 0f;
             sfx.playOnAwake = false;
             sfx.dopplerLevel = 0f;
         }
 
         effects = GetComponent<WeaponEffects>();
         if (effects == null) effects = gameObject.AddComponent<WeaponEffects>();
-
         _cachedCamera = GetComponentInChildren<PlayerCamera>();
 
         if (eyes != null) defaultFOV = eyes.fieldOfView;
@@ -118,12 +122,10 @@ public class PlayerShooting : MonoBehaviour
         mag = new int[n];
         reserve = new int[n];
 
-
         for (int i = 0; i < n; i++)
         {
             var cfg = loadout[i];
             if (cfg == null) continue;
-
             mag[i] = cfg.magazineSize;
             reserve[i] = cfg.reserveAmmo;
 
@@ -133,7 +135,6 @@ public class PlayerShooting : MonoBehaviour
                 go.transform.localPosition = Vector3.zero;
                 go.transform.localRotation = Quaternion.identity;
                 SetLayerRecursive(go, LayerMask.NameToLayer("ViewModel"));
-
                 var vmAnim = go.GetComponent<WeaponViewModel>();
                 if (vmAnim != null)
                 {
@@ -154,10 +155,10 @@ public class PlayerShooting : MonoBehaviour
     void Update()
     {
         if (input == null || Config == null) return;
-
         float dt = Time.deltaTime;
         cooldown -= dt;
         equipTimer -= dt;
+        pickupTimer -= dt;
 
         if (eyes != null)
         {
@@ -173,6 +174,8 @@ public class PlayerShooting : MonoBehaviour
         HandleSwitch();
 
         if (input.ReloadPressed) TryReload();
+        if (input.DropPressed) TryDrop();
+        TryPickup();
 
         if (reloading)
         {
@@ -180,12 +183,9 @@ public class PlayerShooting : MonoBehaviour
             float p = ReloadProgress;
             while (reloadStage < ReloadStages.Length && p >= ReloadStages[reloadStage])
             {
-                PlaySfx(reloadStage == 0 ? Config.magOutSound
-                     : reloadStage == 1 ? Config.magInSound
-                     : Config.rackSound);
+                PlaySfx(reloadStage == 0 ? Config.magOutSound : reloadStage == 1 ? Config.magInSound : Config.rackSound);
                 reloadStage++;
             }
-
             if (reloadTimer <= 0f) FinishReload();
         }
         else if (reloadStage != 0)
@@ -195,7 +195,6 @@ public class PlayerShooting : MonoBehaviour
 
         HandleFire();
     }
-
 
     void HandleSwitch()
     {
@@ -212,7 +211,6 @@ public class PlayerShooting : MonoBehaviour
         if (viewModels[currentSlot] != null) viewModels[currentSlot].SetActive(true);
 
         _currentViewModel = viewModels[currentSlot] != null ? viewModels[currentSlot].GetComponent<WeaponViewModel>() : null;
-
         if (_currentViewModel != null) _currentViewModel.Equip();
 
         reloading = false;
@@ -256,14 +254,12 @@ public class PlayerShooting : MonoBehaviour
         reloading = false;
         ReloadStateChanged?.Invoke(false);
         if (Config == null) return;
-
         int need = Config.magazineSize - mag[currentSlot];
         int take = Mathf.Min(need, reserve[currentSlot]);
         mag[currentSlot] += take;
         reserve[currentSlot] -= take;
         AmmoChanged?.Invoke();
     }
-
 
     void HandleFire()
     {
@@ -296,7 +292,8 @@ public class PlayerShooting : MonoBehaviour
 
     void MeleeAttack()
     {
-        if (_currentViewModel != null) _currentViewModel.Attack();
+        if (_currentViewModel != null)
+            _currentViewModel.Attack();
 
         float meleeRange = 2.5f;
         Vector3 dir = eyes.transform.forward;
@@ -305,7 +302,6 @@ public class PlayerShooting : MonoBehaviour
         if (Physics.SphereCast(origin, 0.5f, dir, out RaycastHit hit, meleeRange, ~0, QueryTriggerInteraction.Ignore))
         {
             if (hit.collider.transform.IsChildOf(transform)) return;
-
             var health = hit.collider.GetComponentInParent<PlayerHealth>();
             if (health != null && health.IsAlive)
             {
@@ -314,10 +310,7 @@ public class PlayerShooting : MonoBehaviour
                 health.TakeDamage(dmg, hit.point, dir);
                 HitConfirmed?.Invoke(dmg, !health.IsAlive);
             }
-            else
-            {
-                effects.PlayImpact(hit, Config);
-            }
+            else effects.PlayImpact(hit, Config);
         }
     }
 
@@ -330,7 +323,6 @@ public class PlayerShooting : MonoBehaviour
         if (Time.time - lastShotTime > 0.5f) shotsFiredInBurst = 0;
         lastShotTime = Time.time;
 
-        // 1. Расчет смещения по паттерну (теперь это только для полета пули)
         Vector2 patternOffset = Vector2.zero;
         if (Config.sprayPattern != null && Config.sprayPattern.Length > 0)
         {
@@ -338,11 +330,9 @@ public class PlayerShooting : MonoBehaviour
                 patternOffset = Config.sprayPattern[shotsFiredInBurst];
             else
                 patternOffset = Config.sprayPattern[Config.sprayPattern.Length - 1] * 0.2f + UnityEngine.Random.insideUnitCircle * 0.1f;
-
             shotsFiredInBurst++;
         }
 
-        // 2. Визуальная тряска (НЕ меняет направление пули, просто для эффекта)
         var cam = _cachedCamera;
         if (cam != null)
         {
@@ -350,12 +340,10 @@ public class PlayerShooting : MonoBehaviour
             cam.AddRecoil(patternOffset.y * shakeMult, patternOffset.x * shakeMult);
         }
 
-        // 3. РАСЧЕТ НАПРАВЛЕНИЯ ПУЛИ
         float currentSpreadMult = input.AimHeld ? Config.adsSpreadMultiplier : 1f;
         float spreadDeg = (Config.baseSpread + bloom) * currentSpreadMult;
         Vector2 randomSpread = UnityEngine.Random.insideUnitCircle * spreadDeg;
 
-        // Направление = Взгляд + Паттерн + Рандом
         Vector3 dir = eyes.transform.rotation * Quaternion.Euler(patternOffset.y + randomSpread.y, patternOffset.x + randomSpread.x, 0f) * Vector3.forward;
         Vector3 origin = eyes.transform.position;
 
@@ -406,6 +394,124 @@ public class PlayerShooting : MonoBehaviour
         go.layer = layer;
         for (int i = 0; i < go.transform.childCount; i++)
             SetLayerRecursive(go.transform.GetChild(i).gameObject, layer);
+    }
+
+    void TryDrop()
+    {
+        if (Config == null || !Config.isDroppable) return;
+
+        WeaponConfig droppedConfig = Config; // Сохраняем ссылку на то, что выбрасываем
+
+        if (itemPickupPrefab != null)
+        {
+            Vector3 spawnPos = eyes.transform.position + eyes.transform.forward * 1.5f + Vector3.down * 0.5f;
+            GameObject dropObj = Instantiate(itemPickupPrefab, spawnPos, Quaternion.identity);
+            ItemPickup pickup = dropObj.GetComponent<ItemPickup>();
+            if (pickup != null) pickup.config = droppedConfig;
+
+            // Добавляем импульс, чтобы оружие «вылетало» из рук
+            Rigidbody rb = dropObj.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                Vector3 throwForce = eyes.transform.forward * 2f + Vector3.up * 1f;
+                rb.AddForce(throwForce, ForceMode.Impulse);
+                rb.AddTorque(new Vector3(UnityEngine.Random.Range(-10f, 10f), UnityEngine.Random.Range(-10f, 10f), UnityEngine.Random.Range(-10f, 10f)),
+                    ForceMode.Impulse);
+            }
+        }
+        pickupTimer = pickupCooldown;
+        loadout[currentSlot] = null;
+        if (viewModels[currentSlot] != null)
+        {
+            Destroy(viewModels[currentSlot]);
+            viewModels[currentSlot] = null;
+        }
+
+        // Переключаемся на нож (слот 2), если мы не выбрасывали сам нож
+        if (currentSlot != 2)
+        {
+            currentSlot = 2;
+            if (viewModels[currentSlot] != null) viewModels[currentSlot].SetActive(true);
+            _currentViewModel = viewModels[currentSlot] != null ? viewModels[currentSlot].GetComponent<WeaponViewModel>() : null;
+            if (_currentViewModel != null) _currentViewModel.Equip();
+        }
+
+        AmmoChanged?.Invoke();
+        // Важно: передаем ТЕКУЩИЙ конфиг (теперь это будет нож), чтобы UI обновился
+        WeaponSwitched?.Invoke(currentSlot, Config);
+    }
+
+    void TryPickup()
+    {
+        if (eyes == null) return;
+
+        if (pickupTimer > 0f) return;
+
+        // Визуализируем луч подбора в окне Scene, чтобы видеть, куда мы смотрим
+        Debug.DrawRay(eyes.transform.position, eyes.transform.forward * pickupRange, Color.green);
+
+        if (Physics.Raycast(eyes.transform.position, eyes.transform.forward, out RaycastHit hit, pickupRange, pickupMask))
+        {
+            Debug.Log($"[Pickup] Луч попал в: {hit.collider.name} на слое {LayerMask.LayerToName(hit.collider.gameObject.layer)}");
+
+            if (hit.collider == null) return;
+
+            ItemPickup pickup = hit.collider.GetComponent<ItemPickup>();
+            if (pickup == null)
+            {
+                Debug.LogWarning($"[Pickup] Попали в {hit.collider.name}, но на нем нет скрипта ItemPickup!");
+                return;
+            }
+
+            if (pickup.config == null)
+            {
+                Debug.LogWarning($"[Pickup] Предмет {hit.collider.name} найден, но в нем не назначен WeaponConfig!");
+                return;
+            }
+
+            WeaponConfig pickedConfig = pickup.config;
+            int freeSlot = -1;
+            if (loadout[0] == null) freeSlot = 0;
+            else if (loadout[1] == null) freeSlot = 1;
+
+            if (freeSlot != -1)
+            {
+                loadout[freeSlot] = pickedConfig;
+
+                // БАГ: Мы всегда ставим полные патроны из конфига при подборе.
+                // Если мы хотим, чтобы оружие "запоминало" сколько в нем осталось патронов,
+                // нужно хранить эти данные в самом объекте ItemPickup в мире.
+                // Пока что просто обновляем, но если это "то же самое" оружие,
+                // оно сбросится до максимума.
+                mag[freeSlot] = pickedConfig.magazineSize;
+                reserve[freeSlot] = pickedConfig.reserveAmmo;
+
+                if (pickedConfig.viewModelPrefab != null && weaponHolder != null)
+                {
+                    var go = Instantiate(pickedConfig.viewModelPrefab, weaponHolder);
+                    go.transform.localPosition = Vector3.zero;
+                    go.transform.localRotation = Quaternion.identity;
+                    SetLayerRecursive(go, LayerMask.NameToLayer("ViewModel"));
+                    var vm = go.GetComponent<WeaponViewModel>();
+                    if (vm != null)
+                    {
+                        vm.input = input;
+                        vm.shooting = this;
+                        vm.controller = GetComponent<PlayerController>();
+                    }
+                    viewModels[freeSlot] = go;
+                    if (freeSlot == currentSlot) go.SetActive(true);
+                    else go.SetActive(false);
+                }
+                pickup.Despawn();
+                Debug.Log($"[Pickup] Оружие {pickedConfig.displayName} подобрано в слот {freeSlot}");
+                AmmoChanged?.Invoke();
+            }
+            else
+            {
+                Debug.Log("[Pickup] Нет свободных слотов для оружия!");
+            }
+        }
     }
 
     class DistanceComparer : System.Collections.Generic.IComparer<RaycastHit>

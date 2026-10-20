@@ -12,6 +12,8 @@ public class WeaponConfig : ScriptableObject
     [Header("Идентификация")]
     public WeaponType weaponType = WeaponType.Firearm;
     public string displayName = "Оружие";
+    [Tooltip("Можно ли выбросить это оружие (для ножа должно быть false)")]
+    public bool isDroppable = true;
     [Tooltip("Автомат: огонь при удержании ЛКМ. Выкл — один выстрел на нажатие")]
     public bool automatic = false;
 
