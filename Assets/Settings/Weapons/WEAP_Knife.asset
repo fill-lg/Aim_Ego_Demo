@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponConfig
   weaponType: 1
   displayName: M9_Knife
+  isDroppable: 0
   automatic: 1
   damage: 30
   range: 300
@@ -38,6 +39,8 @@ MonoBehaviour:
   magOutSound: {fileID: 0}
   magInSound: {fileID: 0}
   rackSound: {fileID: 0}
+  adsSpreadMultiplier: 0.5
+  adsRecoilMultiplier: 0.7
   adsPosition: {x: 0, y: -0.1, z: 0.1}
   adsRotation: {x: 0, y: 0, z: 0}
   adsFOV: 40

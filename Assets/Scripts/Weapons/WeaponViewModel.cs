@@ -199,6 +199,21 @@ public class WeaponViewModel : MonoBehaviour
         if (magPart != null) magPart.localPosition = magBase + magOutLocal * magOutVal;
     }
 
+    public void TriggerReload()
+    {
+        if (animator != null) animator.SetTrigger("Reload");
+    }
+
+    public void TriggerSwitch()
+    {
+        if (animator != null) animator.SetTrigger("Switch");
+    }
+
+    public void TriggerFire()
+    {
+        if (animator != null) animator.SetTrigger("Fire");
+    }
+
     public void Kick(float back = 0.05f, float up = 4f)
     {
         kick += Vector3.back * back + Vector3.up * (back * 0.3f);

@@ -211,7 +211,11 @@ public class PlayerShooting : MonoBehaviour
         if (viewModels[currentSlot] != null) viewModels[currentSlot].SetActive(true);
 
         _currentViewModel = viewModels[currentSlot] != null ? viewModels[currentSlot].GetComponent<WeaponViewModel>() : null;
-        if (_currentViewModel != null) _currentViewModel.Equip();
+        if (_currentViewModel != null)
+        {
+            _currentViewModel.Equip();
+            _currentViewModel.TriggerSwitch();
+        }
 
         reloading = false;
         bloom = 0f;
@@ -245,6 +249,8 @@ public class PlayerShooting : MonoBehaviour
         reloadStage = 0;
         reloadTimer = Config.reloadTime;
 
+        if (_currentViewModel != null)
+            _currentViewModel.TriggerReload();
         if (_currentViewModel != null && _currentViewModel.animator != null)
             _currentViewModel.animator.SetTrigger("Reload");
     }
@@ -288,6 +294,8 @@ public class PlayerShooting : MonoBehaviour
         }
 
         Fire();
+        if (_currentViewModel != null)
+            _currentViewModel.TriggerFire();
     }
 
     void MeleeAttack()
