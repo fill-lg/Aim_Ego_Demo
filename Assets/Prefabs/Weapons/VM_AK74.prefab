@@ -373,6 +373,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4482345719928092820}
   - component: {fileID: 2228429822544772122}
+  - component: {fileID: -404081409377980103}
   m_Layer: 8
   m_Name: VM_AK74
   m_TagString: Untagged
@@ -390,8 +391,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.045714658, y: 0, z: 0.8976719}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 1.4, y: 1.4, z: 1.4}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 437680516947340549}
   - {fileID: 446476410953108290}
@@ -433,6 +434,28 @@ MonoBehaviour:
   slideReturnSpeed: 22
   magPart: {fileID: 0}
   magOutLocal: {x: 0, y: 0, z: 0}
+--- !u!95 &-404081409377980103
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1959400229360688639}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 1c7178bd5dfed9c4cbdbe47f6bd16460, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &5318981046300296607
 GameObject:
   m_ObjectHideFlags: 0

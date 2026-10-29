@@ -1099,7 +1099,12 @@ MonoBehaviour:
   - {fileID: 3003190466575020656}
   crosshairBaseGap: 6
   crosshairSpreadScale: 14
+  crosshairLineLength: 8
+  crosshairLineThickness: 2
+  crosshairSmoothing: 15
   hitmarker: {fileID: 7103356666817195781}
+  hitSound: {fileID: 0}
+  hitmarkerPopScale: 1.2
   reloadRoot: {fileID: 2649542770059678559}
   reloadFill: {fileID: 3990390570428148924}
   hpFill: {fileID: 5294434494485110070}
@@ -1125,6 +1130,8 @@ GameObject:
   - component: {fileID: 8859703300274569445}
   - component: {fileID: 3504169268127445007}
   - component: {fileID: 7540321036638763354}
+  - component: {fileID: -2569287398921631653}
+  - component: {fileID: -2068574950285047705}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1238,12 +1245,20 @@ MonoBehaviour:
   loadout:
   - {fileID: 11400000, guid: 747ae1851714c154c89babaaa8d1bc10, type: 2}
   - {fileID: 11400000, guid: bb079119dd1fd074195f2f633ae9b51b, type: 2}
+  knifeConfig: {fileID: 0}
   tracerMaterial: {fileID: 2100000, guid: 27b791256f574bc4294e4f5e52b845d3, type: 2}
   decalMaterial: {fileID: 2100000, guid: 79d47cd690d2eab42ba808789e9999a4, type: 2}
   impactPrefab: {fileID: 8698549866648051631, guid: 6a3126438941fb540953e4adfea76cdc, type: 3}
   decalSize: 0.15
   decalLifetime: 12
   equipTime: 0.5
+  itemPickupPrefab: {fileID: 0}
+  pickupRange: 2
+  pickupMask:
+    serializedVersion: 2
+    m_Bits: 0
+  pickupCooldown: 1
+  sfx: {fileID: 0}
 --- !u!114 &7540321036638763354
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1259,6 +1274,43 @@ MonoBehaviour:
   maxHealth: 100
   respawnOnDeath: 0
   respawnDelay: 3
+--- !u!95 &-2569287398921631653
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4344792484989414233}
+  m_Enabled: 1
+  m_Avatar: {fileID: 9000000, guid: d9cd8eb4a074cd84ab2686c58bcf21d9, type: 3}
+  m_Controller: {fileID: 9100000, guid: 1a231f08bcbcbfa4b9b36d094341e279, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &-2068574950285047705
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4344792484989414233}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 76042378e1e31ff489ae320dc36fa88a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimationController
+  controller: {fileID: 0}
+  input: {fileID: 0}
+  shooting: {fileID: 0}
 --- !u!1 &4375345796407898775
 GameObject:
   m_ObjectHideFlags: 0
@@ -2457,7 +2509,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 7869543608362826461, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: 4311652260893728935, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}

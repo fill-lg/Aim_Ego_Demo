@@ -83,7 +83,7 @@ public class PlayerController : MonoBehaviour
         if (input == null) return;
 
         UpdateGround();
-        UpdateCrouch();
+        // UpdateCrouch(); // Временно отключено: нет подходящих анимаций
         UpdateMovement();
         UpdateJump();
         UpdateGravity();
@@ -228,7 +228,7 @@ public class PlayerController : MonoBehaviour
 
     // ===== ГЕТТЕРЫ ДЛЯ ДРУГИХ СИСТЕМ (анимации, звуки, оружие, сеть) =====
     public bool IsGrounded() => isGrounded;
-    public bool IsCrouching() => isCrouching;
+    public bool IsCrouching() => false; // Временно отключено: нет подходящих анимаций
     public bool IsSprinting() => !isCrouching && input.SprintHeld && input.Move.y > 0.1f;
     public bool IsJumping() => !isGrounded && verticalVelocity > 0;
     public float GetHorizontalSpeed() => horizontalVelocity.magnitude;
